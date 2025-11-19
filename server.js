@@ -48,10 +48,24 @@ function extractPlaceId(url) {
 
 // Extract place name from URL for text search
 function extractPlaceName(url) {
-    const placeNameMatch = url.match(/\/place\/([^\/]+)/);
+    // Method 1: /place/ format
+    const placeNameMatch = url.match(/\/place\/([^\/\?&@]+)/);
     if (placeNameMatch) {
         return decodeURIComponent(placeNameMatch[1].replace(/\+/g, ' '));
     }
+
+    // Method 2: ?q= parameter
+    const qMatch = url.match(/[?&]q=([^&]+)/);
+    if (qMatch) {
+        return decodeURIComponent(qMatch[1].replace(/\+/g, ' '));
+    }
+
+    // Method 3: /search/ format
+    const searchMatch = url.match(/\/search\/([^\/\?&]+)/);
+    if (searchMatch) {
+        return decodeURIComponent(searchMatch[1].replace(/\+/g, ' '));
+    }
+
     return null;
 }
 

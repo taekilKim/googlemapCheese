@@ -564,12 +564,15 @@
                     updatePreview(data.place);
                     showSuccess('장소 정보를 성공적으로 가져왔습니다');
                 } else {
-                    showError(data.error || '장소 정보를 가져올 수 없습니다.');
+                    console.error('Server error:', data);
+                    const errorMsg = data.error || '장소 정보를 가져올 수 없습니다.';
+                    const debugInfo = data.debug ? ` (디버그: ${JSON.stringify(data.debug)})` : '';
+                    showError(errorMsg + debugInfo);
                 }
 
             } catch (error) {
-                console.error('Error:', error);
-                showError('서버 연결 오류가 발생했습니다.');
+                console.error('Fetch error:', error);
+                showError('서버 연결 오류가 발생했습니다: ' + error.message);
             } finally {
                 loading.style.display = 'none';
             }

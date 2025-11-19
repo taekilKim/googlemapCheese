@@ -73,13 +73,25 @@ function extractPlaceName(url) {
 // Function to expand shortened URLs using follow-redirects
 function expandUrl(url) {
     return new Promise((resolve, reject) => {
-        https.get(url, {
+        const parsedUrl = new URL(url);
+        const options = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
-        }, (response) => {
-            // The final URL after all redirects
-            resolve(response.responseUrl || url);
+        };
+
+        https.get(options, (response) => {
+            // Get the final URL after all redirects
+            const finalUrl = response.responseUrl ||
+                           `https://${response.req.host}${response.req.path}` ||
+                           url;
+            console.log('Expanded to:', finalUrl);
+
+            // End the response to prevent hanging
+            response.resume();
+            resolve(finalUrl);
         }).on('error', (err) => {
             console.error('URL expansion error:', err.message);
             resolve(url); // Return original URL on error
@@ -179,7 +191,10 @@ app.post('/api/place-from-url', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Error:', error.message);
+        console.error('========================================');
+        console.error('ERROR:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('========================================');
         res.status(500).json({
             error: '서버 오류가 발생했습니다.',
             details: error.message

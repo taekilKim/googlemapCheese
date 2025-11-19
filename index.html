@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구글 지도 인증샷 메이커</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        @media (max-width: 968px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #1a73e8;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #5f6368;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #202124;
+        }
+
+        input[type="text"] {
+            padding: 12px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #1a73e8;
+        }
+
+        .api-key-section {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid #1a73e8;
+        }
+
+        .api-key-section small {
+            display: block;
+            color: #5f6368;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .api-key-section a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+
+        .api-key-section a:hover {
+            text-decoration: underline;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1557b0;
+        }
+
+        button:disabled {
+            background: #dadce0;
+            cursor: not-allowed;
+        }
+
+        .secondary-btn {
+            background: #34a853;
+        }
+
+        .secondary-btn:hover {
+            background: #2d8e47;
+        }
+
+        .file-upload {
+            border: 2px dashed #dadce0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .file-upload:hover {
+            border-color: #1a73e8;
+        }
+
+        .file-upload.drag-over {
+            border-color: #1a73e8;
+            background: #f1f3f4;
+        }
+
+        .file-upload input {
+            display: none;
+        }
+
+        /* Google Maps Card Preview */
+        .preview-container {
+            position: relative;
+            width: 100%;
+            max-width: 375px;
+            margin: 0 auto;
+            background: #f8f9fa;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .phone-preview {
+            position: relative;
+            width: 100%;
+            background: white;
+        }
+
+        .photo-container {
+            position: relative;
+            width: 100%;
+            padding-top: 133.33%; /* 3:4 aspect ratio */
+            background: #e8eaed;
+            overflow: hidden;
+        }
+
+        .photo-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .maps-card {
+            position: relative;
+            margin-top: -24px; /* Overlap with photo */
+            background: white;
+            border-radius: 24px 24px 0 0;
+            padding: 20px;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .maps-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .place-name {
+            font-size: 22px;
+            font-weight: 400;
+            color: #202124;
+            line-height: 1.3;
+        }
+
+        .close-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #f1f3f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            color: #5f6368;
+        }
+
+        .rating-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .rating-number {
+            font-size: 14px;
+            color: #202124;
+        }
+
+        .stars {
+            color: #fbbc04;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .review-count {
+            font-size: 14px;
+            color: #5f6368;
+        }
+
+        .category {
+            font-size: 14px;
+            color: #5f6368;
+            margin-bottom: 4px;
+        }
+
+        .address {
+            font-size: 14px;
+            color: #1a73e8;
+            margin-bottom: 16px;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            padding-top: 16px;
+            border-top: 1px solid #e8eaed;
+        }
+
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 8px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #5f6368;
+            font-size: 11px;
+        }
+
+        .action-btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #f1f3f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .error-message {
+            background: #fce8e6;
+            color: #c5221f;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .success-message {
+            background: #e6f4ea;
+            color: #137333;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #5f6368;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1a73e8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Left Section: Inputs -->
+        <div class="section">
+            <div>
+                <h1>🗺️ 구글 지도 인증샷 메이커</h1>
+                <p class="subtitle">구글 지도 링크와 사진으로 인증샷을 만들어보세요!</p>
+            </div>
+
+
+            <!-- Google Maps Link -->
+            <div class="input-group">
+                <label for="mapsLink">구글 지도 링크</label>
+                <input type="text" id="mapsLink" placeholder="https://maps.google.com/... 또는 https://goo.gl/maps/...">
+                <button id="fetchBtn" onclick="fetchPlaceData()">🔍 장소 정보 가져오기</button>
+            </div>
+
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>장소 정보를 가져오는 중...</p>
+            </div>
+
+            <!-- Photo Upload -->
+            <div class="input-group">
+                <label>📸 인증샷 업로드</label>
+                <div class="file-upload" id="fileUpload">
+                    <input type="file" id="photoInput" accept="image/*">
+                    <p>📷 클릭하거나 드래그해서 사진 업로드</p>
+                    <small style="color: #5f6368; margin-top: 8px;">JPG, PNG 파일 지원</small>
+                </div>
+            </div>
+
+            <!-- Download Button -->
+            <button class="secondary-btn" id="downloadBtn" onclick="downloadImage()" disabled>
+                💾 이미지로 저장하기
+            </button>
+        </div>
+
+        <!-- Right Section: Preview -->
+        <div class="section">
+            <h2 style="font-size: 20px; color: #202124; margin-bottom: 10px;">미리보기</h2>
+
+            <div class="preview-container" id="previewContainer">
+                <div class="phone-preview">
+                    <div class="photo-container" id="photoContainer">
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #9aa0a6;">
+                            <p>사진이 여기에 표시됩니다</p>
+                        </div>
+                    </div>
+                    <div class="maps-card" id="mapsCard">
+                        <div class="maps-card-header">
+                            <div class="place-name" id="placeName">장소 이름</div>
+                            <div class="close-btn">×</div>
+                        </div>
+                        <div class="rating-section">
+                            <span class="rating-number" id="ratingNumber">0.0</span>
+                            <span class="stars" id="stars">☆☆☆☆☆</span>
+                            <span class="review-count" id="reviewCount">(0)</span>
+                        </div>
+                        <div class="category" id="category">카테고리</div>
+                        <div class="address" id="address">주소를 불러오는 중...</div>
+                        <div class="action-buttons">
+                            <div class="action-btn">
+                                <div class="action-btn-icon">🧭</div>
+                                <span>경로</span>
+                            </div>
+                            <div class="action-btn">
+                                <div class="action-btn-icon">💾</div>
+                                <span>저장</span>
+                            </div>
+                            <div class="action-btn">
+                                <div class="action-btn-icon">🔍</div>
+                                <span>주변</span>
+                            </div>
+                            <div class="action-btn">
+                                <div class="action-btn-icon">📤</div>
+                                <span>공유</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script>
+        const API_BASE_URL = window.location.origin;
+
+        // File upload handling
+        const fileUpload = document.getElementById('fileUpload');
+        const photoInput = document.getElementById('photoInput');
+        const photoContainer = document.getElementById('photoContainer');
+
+        fileUpload.addEventListener('click', () => photoInput.click());
+
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.classList.add('drag-over');
+        });
+
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.classList.remove('drag-over');
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUpload.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleImageUpload(file);
+            }
+        });
+
+        photoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleImageUpload(file);
+            }
+        });
+
+        function handleImageUpload(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                photoContainer.innerHTML = `<img src="${e.target.result}" alt="Uploaded photo">`;
+                document.getElementById('downloadBtn').disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Fetch place data from Google Maps
+        async function fetchPlaceData() {
+            const mapsLink = document.getElementById('mapsLink').value.trim();
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const loading = document.getElementById('loading');
+
+            // Hide messages
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+
+            // Validation
+            if (!mapsLink) {
+                showError('구글 지도 링크를 입력해주세요.');
+                return;
+            }
+
+            // Show loading
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/place-from-url`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: mapsLink })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    updatePreview(data.place);
+                    showSuccess('✅ 장소 정보를 성공적으로 가져왔습니다!');
+                } else {
+                    showError(data.error || '장소 정보를 가져올 수 없습니다.');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('서버 연결 오류가 발생했습니다. 서버가 실행 중인지 확인해주세요.');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Update preview with place data
+        function updatePreview(place) {
+            document.getElementById('placeName').textContent = place.name || '장소 이름';
+            document.getElementById('ratingNumber').textContent = place.rating || '0.0';
+            document.getElementById('stars').textContent = getStars(place.rating || 0);
+            document.getElementById('reviewCount').textContent = `(${(place.user_ratings_total || 0).toLocaleString()})`;
+            document.getElementById('category').textContent = getCategoryName(place.types);
+            document.getElementById('address').textContent = place.formatted_address || '주소 없음';
+        }
+
+        // Convert rating to stars
+        function getStars(rating) {
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 >= 0.5;
+            let stars = '★'.repeat(fullStars);
+            if (hasHalfStar) stars += '⯨';
+            stars += '☆'.repeat(5 - fullStars - (hasHalfStar ? 1 : 0));
+            return stars;
+        }
+
+        // Get category name in Korean
+        function getCategoryName(types) {
+            if (!types || types.length === 0) return '장소';
+
+            const categoryMap = {
+                'restaurant': '음식점',
+                'cafe': '카페',
+                'bar': '술집',
+                'store': '상점',
+                'shopping_mall': '쇼핑몰',
+                'park': '공원',
+                'museum': '박물관',
+                'tourist_attraction': '관광명소',
+                'lodging': '숙박',
+                'hospital': '병원',
+                'school': '학교',
+                'gym': '헬스장',
+                'beauty_salon': '미용실',
+                'hair_care': '미용실',
+                'clothing_store': '의류 매장',
+                'book_store': '서점',
+                'bakery': '베이커리',
+                'convenience_store': '편의점',
+                'supermarket': '슈퍼마켓'
+            };
+
+            for (const type of types) {
+                if (categoryMap[type]) {
+                    return categoryMap[type];
+                }
+            }
+
+            return types[0].replace(/_/g, ' ');
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const successMessage = document.getElementById('successMessage');
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+        }
+
+        // Download image
+        async function downloadImage() {
+            const previewContainer = document.getElementById('previewContainer');
+
+            try {
+                const canvas = await html2canvas(previewContainer, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    useCORS: true
+                });
+
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `google-maps-photo-${Date.now()}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                });
+            } catch (error) {
+                console.error('Download error:', error);
+                showError('이미지 저장 중 오류가 발생했습니다.');
+            }
+        }
+    </script>
+</body>
+</html>

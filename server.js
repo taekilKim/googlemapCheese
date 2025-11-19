@@ -21,7 +21,7 @@ app.get('/', (req, res) => {
 // API endpoint to get place details from Google Maps URL
 app.post('/api/place-from-url', async (req, res) => {
     try {
-        const { url } = req.body;
+        const { url, language } = req.body;
 
         if (!url) {
             return res.status(400).json({ error: '구글 지도 URL을 입력해주세요.' });
@@ -29,6 +29,32 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('========================================');
         console.log('Fetching metadata from:', url);
+        console.log('Requested language:', language || 'auto');
+
+        // Detect language from URL or use provided language
+        let detectedLang = language || 'en';
+
+        // Try to detect language from URL domain
+        if (url.includes('.co.jp')) {
+            detectedLang = 'ja';
+        } else if (url.includes('.co.kr')) {
+            detectedLang = 'ko';
+        } else if (url.includes('.fr')) {
+            detectedLang = 'fr';
+        } else if (url.includes('.de')) {
+            detectedLang = 'de';
+        } else if (url.includes('.it')) {
+            detectedLang = 'it';
+        } else if (url.includes('.es')) {
+            detectedLang = 'es';
+        } else if (url.includes('.cn') || url.includes('.com.cn')) {
+            detectedLang = 'zh-CN';
+        }
+
+        // Build Accept-Language header with detected/requested language first
+        const acceptLanguage = `${detectedLang},en-US;q=0.9,en;q=0.8,ko;q=0.7,ja;q=0.6`;
+
+        console.log('Using Accept-Language:', acceptLanguage);
 
         // Fetch the HTML page
         const response = await axios.get(url, {
@@ -36,7 +62,7 @@ app.post('/api/place-from-url', async (req, res) => {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+                'Accept-Language': acceptLanguage
             }
         });
 
@@ -58,7 +84,7 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Description:', description);
         console.log('Image:', image);
 
-        if (!placeName || placeName.includes('Google Maps')) {
+        if (!placeName || placeName.includes('Google Maps') || placeName.includes('Google マップ')) {
             return res.status(404).json({
                 error: '장소 정보를 찾을 수 없습니다.',
                 debug: { url }
@@ -76,10 +102,14 @@ app.post('/api/place-from-url', async (req, res) => {
         let reviewCount = 0;
 
         if (description) {
-            // Extract rating from stars (★★★★☆ = 4.0)
-            const stars = description.match(/★/g);
-            if (stars) {
-                rating = stars.length;
+            // Count filled stars for rating (★ = filled, ☆ = empty)
+            const filledStars = (description.match(/★/g) || []).length;
+            const emptyStars = (description.match(/☆/g) || []).length;
+            const totalStars = filledStars + emptyStars;
+
+            // Calculate rating as decimal (e.g., 4 filled out of 5 total = 4.0)
+            if (totalStars > 0) {
+                rating = filledStars;
             }
 
             // Extract category (text after the stars)
@@ -87,6 +117,34 @@ app.post('/api/place-from-url', async (req, res) => {
             if (categoryMatch) {
                 category = categoryMatch[1];
             }
+        }
+
+        // Try to extract actual rating and review count from page data
+        // Google Maps embeds this data in JavaScript variables
+        const htmlContent = response.data;
+
+        // Look for rating pattern like: ["4.1",123]
+        const ratingPattern = /\["([\d.]+)",(\d+)\]/g;
+        let matches;
+        let foundRating = null;
+        let foundReviews = null;
+
+        while ((matches = ratingPattern.exec(htmlContent)) !== null) {
+            const possibleRating = parseFloat(matches[1]);
+            const possibleReviews = parseInt(matches[2]);
+
+            // Validate that it looks like a real rating (between 1-5) and review count
+            if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0) {
+                foundRating = possibleRating;
+                foundReviews = possibleReviews;
+                break;
+            }
+        }
+
+        if (foundRating !== null) {
+            rating = foundRating;
+            reviewCount = foundReviews;
+            console.log('Found rating from page data:', rating, 'Reviews:', reviewCount);
         }
 
         // Build response in the same format as Places API

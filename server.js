@@ -207,7 +207,13 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', apiKeyConfigured: !!process.env.GOOGLE_MAPS_API_KEY });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 서버가 http://localhost:${PORT} 에서 실행 중입니다!`);
-    console.log(`📝 API Key 설정 상태: ${process.env.GOOGLE_MAPS_API_KEY ? '✅ 설정됨' : '❌ 미설정'}`);
-});
+// Start server only in development (not on Vercel)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`🚀 서버가 http://localhost:${PORT} 에서 실행 중입니다!`);
+        console.log(`📝 API Key 설정 상태: ${process.env.GOOGLE_MAPS_API_KEY ? '✅ 설정됨' : '❌ 미설정'}`);
+    });
+}
+
+// Export for Vercel serverless
+module.exports = app;

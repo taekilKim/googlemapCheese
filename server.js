@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const cheerio = require('cheerio');
 const path = require('path');
 
 const app = express();
@@ -17,82 +18,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Extract Place ID from Google Maps URL
-function extractPlaceId(url) {
-    // Method 1: Direct place_id parameter
-    const placeIdMatch = url.match(/place_id[=:]([^&\s]+)/i);
-    if (placeIdMatch) {
-        return placeIdMatch[1];
-    }
-
-    // Method 2: From /place/ URL with ftid
-    const ftidMatch = url.match(/ftid=(0x[a-f0-9]+:0x[a-f0-9]+)/i);
-    if (ftidMatch) {
-        return ftidMatch[1];
-    }
-
-    // Method 3: From data parameter
-    const dataMatch = url.match(/!1s(0x[a-f0-9]+:0x[a-f0-9]+)/i);
-    if (dataMatch) {
-        return dataMatch[1];
-    }
-
-    // Method 4: CID (Customer ID)
-    const cidMatch = url.match(/cid=(\d+)/i);
-    if (cidMatch) {
-        return cidMatch[1];
-    }
-
-    return null;
-}
-
-// Extract place name from URL for text search
-function extractPlaceName(url) {
-    // Method 1: /place/ format
-    const placeNameMatch = url.match(/\/place\/([^\/\?&@]+)/);
-    if (placeNameMatch) {
-        return decodeURIComponent(placeNameMatch[1].replace(/\+/g, ' '));
-    }
-
-    // Method 2: ?q= parameter
-    const qMatch = url.match(/[?&]q=([^&]+)/);
-    if (qMatch) {
-        return decodeURIComponent(qMatch[1].replace(/\+/g, ' '));
-    }
-
-    // Method 3: /search/ format
-    const searchMatch = url.match(/\/search\/([^\/\?&]+)/);
-    if (searchMatch) {
-        return decodeURIComponent(searchMatch[1].replace(/\+/g, ' '));
-    }
-
-    return null;
-}
-
-// Function to expand shortened URLs using axios
-async function expandUrl(url) {
-    try {
-        const response = await axios.get(url, {
-            maxRedirects: 10,
-            validateStatus: (status) => status >= 200 && status < 400,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-
-        // Get final URL from response
-        const finalUrl = response.request.res.responseUrl ||
-                        response.config.url ||
-                        url;
-
-        console.log('Expanded to:', finalUrl);
-        return finalUrl;
-    } catch (error) {
-        console.error('URL expansion error:', error.message);
-        return url; // Return original URL on error
-    }
-}
-
 // API endpoint to get place details from Google Maps URL
 app.post('/api/place-from-url', async (req, res) => {
     try {
@@ -102,92 +27,89 @@ app.post('/api/place-from-url', async (req, res) => {
             return res.status(400).json({ error: '구글 지도 URL을 입력해주세요.' });
         }
 
-        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-
-        if (!apiKey) {
-            return res.status(500).json({ error: 'API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.' });
-        }
-
-        // Expand shortened URLs using follow-redirects
-        let expandedUrl = url;
-        if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
-            expandedUrl = await expandUrl(url);
-            console.log('URL expansion:', url !== expandedUrl ? 'successful' : 'failed or not needed');
-        }
-
         console.log('========================================');
-        console.log('Original URL:', url);
-        console.log('Expanded URL:', expandedUrl);
-        console.log('URL changed:', url !== expandedUrl);
+        console.log('Fetching metadata from:', url);
 
-        // Try to extract place ID
-        let placeId = extractPlaceId(expandedUrl);
-        console.log('Extracted Place ID:', placeId);
+        // Fetch the HTML page
+        const response = await axios.get(url, {
+            maxRedirects: 20,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+            }
+        });
 
-        // If no place ID, try text search
-        if (!placeId) {
-            const placeName = extractPlaceName(expandedUrl);
-            console.log('Extracted Place Name:', placeName);
+        // Parse HTML with cheerio
+        const $ = cheerio.load(response.data);
 
-            if (placeName) {
-                const searchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json`;
-                const searchParams = {
-                    input: placeName,
-                    inputtype: 'textquery',
-                    fields: 'place_id',
-                    key: apiKey,
-                    language: 'ko'
-                };
+        // Extract metadata from Open Graph and schema.org tags
+        const placeName = $('meta[property="og:title"]').attr('content') ||
+                         $('meta[itemprop="name"]').attr('content') ||
+                         $('title').text();
 
-                console.log('Searching for:', placeName);
-                const searchResponse = await axios.get(searchUrl, { params: searchParams });
-                console.log('Search API status:', searchResponse.data.status);
+        const description = $('meta[property="og:description"]').attr('content') ||
+                           $('meta[itemprop="description"]').attr('content');
 
-                if (searchResponse.data.candidates && searchResponse.data.candidates.length > 0) {
-                    placeId = searchResponse.data.candidates[0].place_id;
-                    console.log('Found Place ID:', placeId);
-                } else {
-                    console.log('No candidates found');
-                    return res.status(404).json({
-                        error: '장소를 찾을 수 없습니다.',
-                        debug: { url: expandedUrl, placeName }
-                    });
-                }
-            } else {
-                console.log('Could not extract place name from URL');
-                return res.status(400).json({
-                    error: '유효한 구글 지도 URL이 아닙니다.',
-                    debug: { url: expandedUrl }
-                });
+        const image = $('meta[property="og:image"]').attr('content') ||
+                     $('meta[itemprop="image"]').attr('content');
+
+        console.log('Place Name:', placeName);
+        console.log('Description:', description);
+        console.log('Image:', image);
+
+        if (!placeName || placeName.includes('Google Maps')) {
+            return res.status(404).json({
+                error: '장소 정보를 찾을 수 없습니다.',
+                debug: { url }
+            });
+        }
+
+        // Parse the place name and address
+        const nameParts = placeName.split(' · ');
+        const name = nameParts[0];
+        const address = nameParts.length > 1 ? nameParts.slice(1).join(' · ') : '';
+
+        // Parse the description for rating and category
+        let rating = 0;
+        let category = '';
+        let reviewCount = 0;
+
+        if (description) {
+            // Extract rating from stars (★★★★☆ = 4.0)
+            const stars = description.match(/★/g);
+            if (stars) {
+                rating = stars.length;
+            }
+
+            // Extract category (text after the stars)
+            const categoryMatch = description.match(/[★☆]+\s*·\s*(.+)/);
+            if (categoryMatch) {
+                category = categoryMatch[1];
             }
         }
 
-        // Get place details
-        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json`;
-        const detailsParams = {
-            place_id: placeId,
-            fields: 'name,rating,user_ratings_total,formatted_address,types,geometry,photos,opening_hours,formatted_phone_number,website',
-            key: apiKey,
-            language: 'ko'
+        // Build response in the same format as Places API
+        const placeData = {
+            name: name,
+            rating: rating,
+            user_ratings_total: reviewCount,
+            formatted_address: address,
+            types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
+            photos: image ? [{ photo_reference: image }] : []
         };
 
-        const detailsResponse = await axios.get(detailsUrl, { params: detailsParams });
+        console.log('Extracted place data:', placeData);
+        console.log('========================================');
 
-        if (detailsResponse.data.status === 'OK') {
-            res.json({
-                success: true,
-                place: detailsResponse.data.result
-            });
-        } else {
-            res.status(400).json({
-                error: `장소 정보를 가져올 수 없습니다: ${detailsResponse.data.status}`
-            });
-        }
+        res.json({
+            success: true,
+            place: placeData
+        });
 
     } catch (error) {
         console.error('========================================');
         console.error('ERROR:', error.message);
-        console.error('Stack:', error.stack);
         console.error('========================================');
         res.status(500).json({
             error: '서버 오류가 발생했습니다.',
@@ -198,14 +120,13 @@ app.post('/api/place-from-url', async (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', apiKeyConfigured: !!process.env.GOOGLE_MAPS_API_KEY });
+    res.json({ status: 'ok' });
 });
 
 // Start server only in development (not on Vercel)
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`🚀 서버가 http://localhost:${PORT} 에서 실행 중입니다!`);
-        console.log(`📝 API Key 설정 상태: ${process.env.GOOGLE_MAPS_API_KEY ? '✅ 설정됨' : '❌ 미설정'}`);
     });
 }
 

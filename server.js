@@ -95,12 +95,18 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
+        console.log('Original URL:', url);
+        console.log('Expanded URL:', expandedUrl);
+
         // Try to extract place ID
         let placeId = extractPlaceId(expandedUrl);
+        console.log('Extracted Place ID:', placeId);
 
         // If no place ID, try text search
         if (!placeId) {
             const placeName = extractPlaceName(expandedUrl);
+            console.log('Extracted Place Name:', placeName);
+
             if (placeName) {
                 const searchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json`;
                 const searchParams = {
@@ -111,15 +117,26 @@ app.post('/api/place-from-url', async (req, res) => {
                     language: 'ko'
                 };
 
+                console.log('Searching for:', placeName);
                 const searchResponse = await axios.get(searchUrl, { params: searchParams });
+                console.log('Search API status:', searchResponse.data.status);
 
                 if (searchResponse.data.candidates && searchResponse.data.candidates.length > 0) {
                     placeId = searchResponse.data.candidates[0].place_id;
+                    console.log('Found Place ID:', placeId);
                 } else {
-                    return res.status(404).json({ error: '장소를 찾을 수 없습니다.' });
+                    console.log('No candidates found');
+                    return res.status(404).json({
+                        error: '장소를 찾을 수 없습니다.',
+                        debug: { url: expandedUrl, placeName }
+                    });
                 }
             } else {
-                return res.status(400).json({ error: '유효한 구글 지도 URL이 아닙니다.' });
+                console.log('Could not extract place name from URL');
+                return res.status(400).json({
+                    error: '유효한 구글 지도 URL이 아닙니다.',
+                    debug: { url: expandedUrl }
+                });
             }
         }
 

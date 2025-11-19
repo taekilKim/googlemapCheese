@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>구글 지도 인증샷 메이커</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,7 +16,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+            font-family: Roboto, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -28,9 +32,9 @@
             grid-template-columns: 1fr 1fr;
             gap: 30px;
             background: white;
-            border-radius: 20px;
+            border-radius: 8px;
             padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1);
         }
 
         @media (max-width: 968px) {
@@ -49,13 +53,15 @@
             font-size: 28px;
             color: #1a73e8;
             margin-bottom: 10px;
-            font-weight: 600;
+            font-weight: 400;
+            letter-spacing: 0;
         }
 
         .subtitle {
             color: #5f6368;
             font-size: 14px;
             margin-bottom: 20px;
+            font-weight: 400;
         }
 
         .input-group {
@@ -65,45 +71,64 @@
         }
 
         label {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
-            color: #202124;
+            color: #5f6368;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         input[type="text"] {
             padding: 12px 16px;
             border: 1px solid #dadce0;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 14px;
-            transition: border-color 0.2s;
+            transition: all 0.2s;
             font-family: inherit;
+        }
+
+        input[type="text"]:hover {
+            border-color: #bdc1c6;
         }
 
         input[type="text"]:focus {
             outline: none;
             border-color: #1a73e8;
+            border-width: 2px;
+            padding: 11px 15px;
         }
 
         button {
-            padding: 12px 24px;
+            padding: 10px 24px;
             background: #1a73e8;
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s;
             font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15);
         }
 
         button:hover {
+            background: #1765cc;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        button:active {
             background: #1557b0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
 
         button:disabled {
             background: #dadce0;
+            color: #80868b;
             cursor: not-allowed;
+            box-shadow: none;
         }
 
         .secondary-btn {
@@ -114,38 +139,43 @@
             background: #2d8e47;
         }
 
+        .secondary-btn:active {
+            background: #287d3c;
+        }
+
         .file-upload {
             border: 2px dashed #dadce0;
-            border-radius: 8px;
+            border-radius: 4px;
             padding: 40px;
             text-align: center;
             cursor: pointer;
-            transition: border-color 0.2s;
+            transition: all 0.2s;
         }
 
         .file-upload:hover {
             border-color: #1a73e8;
+            background: #f8f9fa;
         }
 
         .file-upload.drag-over {
             border-color: #1a73e8;
-            background: #f1f3f4;
+            background: #e8f0fe;
         }
 
         .file-upload input {
             display: none;
         }
 
-        /* iOS Google Maps Card Preview */
+        /* Google Maps Card Preview - Material Design */
         .preview-container {
             position: relative;
             width: 100%;
-            max-width: 390px;
+            max-width: 375px;
             margin: 0 auto;
-            background: #000;
-            border-radius: 24px;
+            background: #f8f9fa;
+            border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15);
         }
 
         .phone-preview {
@@ -171,40 +201,28 @@
             object-fit: cover;
         }
 
-        /* iOS Style Maps Card */
+        /* Material Design Maps Card */
         .maps-card {
             position: relative;
             margin-top: -16px;
             background: white;
             border-radius: 16px 16px 0 0;
-            padding: 0;
-            box-shadow: 0 -2px 20px rgba(0,0,0,0.08);
-        }
-
-        .card-handle {
-            width: 36px;
-            height: 5px;
-            background: #D1D1D6;
-            border-radius: 3px;
-            margin: 8px auto 16px;
-        }
-
-        .card-content {
-            padding: 0 16px 20px;
+            padding: 16px;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
         }
 
         .place-name {
-            font-size: 24px;
-            font-weight: 600;
-            color: #000;
-            line-height: 1.25;
+            font-size: 22px;
+            font-weight: 400;
+            color: #202124;
+            line-height: 28px;
             margin-bottom: 4px;
-            letter-spacing: -0.3px;
+            letter-spacing: 0;
         }
 
         .category {
-            font-size: 15px;
-            color: #8E8E93;
+            font-size: 14px;
+            color: #5f6368;
             margin-bottom: 12px;
             font-weight: 400;
         }
@@ -212,34 +230,45 @@
         .rating-section {
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 16px;
         }
 
         .rating-number {
-            font-size: 15px;
-            font-weight: 600;
-            color: #000;
+            font-size: 14px;
+            font-weight: 400;
+            color: #202124;
         }
 
         .stars {
             display: flex;
             gap: 2px;
+            align-items: center;
         }
 
         .star {
-            color: #FF9500;
-            font-size: 14px;
+            color: #fbbc04;
+            font-size: 16px;
+            font-family: 'Material Icons';
+            font-weight: normal;
+            font-style: normal;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
         }
 
         .star.empty {
-            color: #D1D1D6;
+            color: #dadce0;
         }
 
         .review-count {
-            font-size: 15px;
-            color: #8E8E93;
-            margin-left: 4px;
+            font-size: 14px;
+            color: #5f6368;
+            font-weight: 400;
         }
 
         .info-section {
@@ -249,89 +278,89 @@
         .info-row {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
-            padding: 10px 0;
+            gap: 16px;
+            padding: 8px 0;
         }
 
         .info-icon {
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            color: #8E8E93;
+            color: #5f6368;
+            font-size: 20px;
+            font-family: 'Material Icons';
             flex-shrink: 0;
+            margin-top: 2px;
         }
 
         .info-text {
             flex: 1;
-            font-size: 15px;
-            color: #007AFF;
-            line-height: 1.4;
+            font-size: 14px;
+            color: #1a73e8;
+            line-height: 20px;
+            font-weight: 400;
         }
 
         .address {
-            color: #000;
+            color: #202124;
         }
 
         .action-buttons {
-            display: flex;
-            gap: 0;
-            border-top: 0.5px solid #E5E5EA;
-            margin: 0 -16px;
-            padding-top: 0;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            padding-top: 16px;
+            border-top: 1px solid #e8eaed;
+            margin-top: 8px;
         }
 
         .action-btn {
-            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 8px;
             padding: 12px 8px;
             background: none;
             border: none;
             cursor: pointer;
-            color: #007AFF;
-            font-size: 10px;
+            color: #1a73e8;
+            font-size: 12px;
             font-weight: 500;
-            transition: background 0.15s;
-            border-right: 0.5px solid #E5E5EA;
+            transition: background 0.2s;
+            border-radius: 4px;
+            font-family: inherit;
         }
 
-        .action-btn:last-child {
-            border-right: none;
+        .action-btn:hover {
+            background: #f1f3f4;
         }
 
         .action-btn:active {
-            background: rgba(0,0,0,0.05);
+            background: #e8eaed;
         }
 
         .action-icon {
+            color: #1a73e8;
             font-size: 24px;
-            margin-bottom: 2px;
+            font-family: 'Material Icons';
         }
 
         .error-message {
-            background: #FEE;
+            background: #fce8e6;
             color: #c5221f;
             padding: 12px 16px;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 14px;
             display: none;
             border-left: 4px solid #c5221f;
         }
 
         .success-message {
-            background: #E8F5E9;
-            color: #2E7D32;
+            background: #e6f4ea;
+            color: #137333;
             padding: 12px 16px;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 14px;
             display: none;
-            border-left: 4px solid #4CAF50;
+            border-left: 4px solid #34a853;
         }
 
         .loading {
@@ -342,7 +371,7 @@
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
+            border: 3px solid #e8eaed;
             border-top: 3px solid #1a73e8;
             border-radius: 50%;
             width: 40px;
@@ -362,15 +391,15 @@
         <!-- Left Section: Inputs -->
         <div class="section">
             <div>
-                <h1>🗺️ 구글 지도 인증샷 메이커</h1>
-                <p class="subtitle">구글 지도 링크와 사진으로 인증샷을 만들어보세요!</p>
+                <h1>구글 지도 인증샷 메이커</h1>
+                <p class="subtitle">구글 지도 링크와 사진으로 인증샷을 만들어보세요</p>
             </div>
 
             <!-- Google Maps Link -->
             <div class="input-group">
                 <label for="mapsLink">구글 지도 링크</label>
                 <input type="text" id="mapsLink" placeholder="https://maps.google.com/... 또는 https://goo.gl/maps/...">
-                <button id="fetchBtn" onclick="fetchPlaceData()">🔍 장소 정보 가져오기</button>
+                <button id="fetchBtn" onclick="fetchPlaceData()">장소 정보 가져오기</button>
             </div>
 
             <div id="errorMessage" class="error-message"></div>
@@ -382,23 +411,23 @@
 
             <!-- Photo Upload -->
             <div class="input-group">
-                <label>📸 인증샷 업로드</label>
+                <label>인증샷 업로드</label>
                 <div class="file-upload" id="fileUpload">
                     <input type="file" id="photoInput" accept="image/*">
-                    <p>📷 클릭하거나 드래그해서 사진 업로드</p>
-                    <small style="color: #5f6368; margin-top: 8px;">JPG, PNG 파일 지원</small>
+                    <p style="font-size: 14px; color: #5f6368; margin-bottom: 8px;">클릭하거나 드래그해서 사진 업로드</p>
+                    <small style="color: #80868b;">JPG, PNG 파일 지원</small>
                 </div>
             </div>
 
             <!-- Download Button -->
             <button class="secondary-btn" id="downloadBtn" onclick="downloadImage()" disabled>
-                💾 이미지로 저장하기
+                이미지로 저장하기
             </button>
         </div>
 
         <!-- Right Section: Preview -->
         <div class="section">
-            <h2 style="font-size: 20px; color: #202124; margin-bottom: 10px; font-weight: 600;">미리보기</h2>
+            <h2 style="font-size: 20px; color: #202124; margin-bottom: 10px; font-weight: 400;">미리보기</h2>
 
             <div class="preview-container" id="previewContainer">
                 <div class="phone-preview">
@@ -408,48 +437,45 @@
                         </div>
                     </div>
                     <div class="maps-card">
-                        <div class="card-handle"></div>
-                        <div class="card-content">
-                            <div class="place-name" id="placeName">장소 이름</div>
-                            <div class="category" id="category">카테고리</div>
+                        <div class="place-name" id="placeName">장소 이름</div>
+                        <div class="category" id="category">카테고리</div>
 
-                            <div class="rating-section">
-                                <span class="rating-number" id="ratingNumber">0.0</span>
-                                <div class="stars" id="starsContainer">
-                                    <span class="star">★</span>
-                                    <span class="star">★</span>
-                                    <span class="star">★</span>
-                                    <span class="star">★</span>
-                                    <span class="star empty">★</span>
-                                </div>
-                                <span class="review-count" id="reviewCount">(0)</span>
+                        <div class="rating-section">
+                            <span class="rating-number" id="ratingNumber">0.0</span>
+                            <div class="stars" id="starsContainer">
+                                <span class="star">star</span>
+                                <span class="star">star</span>
+                                <span class="star">star</span>
+                                <span class="star">star</span>
+                                <span class="star empty">star</span>
                             </div>
+                            <span class="review-count" id="reviewCount">(0)</span>
+                        </div>
 
-                            <div class="info-section">
-                                <div class="info-row">
-                                    <div class="info-icon">📍</div>
-                                    <div class="info-text address" id="address">주소를 불러오는 중...</div>
-                                </div>
+                        <div class="info-section">
+                            <div class="info-row">
+                                <span class="info-icon">place</span>
+                                <div class="info-text address" id="address">주소를 불러오는 중...</div>
                             </div>
+                        </div>
 
-                            <div class="action-buttons">
-                                <button class="action-btn">
-                                    <div class="action-icon">🧭</div>
-                                    <span>경로</span>
-                                </button>
-                                <button class="action-btn">
-                                    <div class="action-icon">💾</div>
-                                    <span>저장</span>
-                                </button>
-                                <button class="action-btn">
-                                    <div class="action-icon">🔍</div>
-                                    <span>주변</span>
-                                </button>
-                                <button class="action-btn">
-                                    <div class="action-icon">📤</div>
-                                    <span>공유</span>
-                                </button>
-                            </div>
+                        <div class="action-buttons">
+                            <button class="action-btn">
+                                <span class="action-icon">directions</span>
+                                <span>길찾기</span>
+                            </button>
+                            <button class="action-btn">
+                                <span class="action-icon">bookmark_border</span>
+                                <span>저장</span>
+                            </button>
+                            <button class="action-btn">
+                                <span class="action-icon">near_me</span>
+                                <span>주변</span>
+                            </button>
+                            <button class="action-btn">
+                                <span class="action-icon">share</span>
+                                <span>공유</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -535,14 +561,14 @@
 
                 if (response.ok && data.success) {
                     updatePreview(data.place);
-                    showSuccess('✅ 장소 정보를 성공적으로 가져왔습니다!');
+                    showSuccess('장소 정보를 성공적으로 가져왔습니다');
                 } else {
                     showError(data.error || '장소 정보를 가져올 수 없습니다.');
                 }
 
             } catch (error) {
                 console.error('Error:', error);
-                showError('서버 연결 오류가 발생했습니다. 서버가 실행 중인지 확인해주세요.');
+                showError('서버 연결 오류가 발생했습니다.');
             } finally {
                 loading.style.display = 'none';
             }
@@ -567,12 +593,12 @@
                 const star = document.createElement('span');
                 star.className = 'star';
                 if (i <= Math.floor(rating)) {
-                    star.textContent = '★';
+                    star.textContent = 'star';
                 } else if (i === Math.ceil(rating) && rating % 1 >= 0.5) {
-                    star.textContent = '★';
+                    star.textContent = 'star_half';
                 } else {
                     star.classList.add('empty');
-                    star.textContent = '★';
+                    star.textContent = 'star_border';
                 }
                 container.appendChild(star);
             }
@@ -592,6 +618,7 @@
                 'museum': '박물관',
                 'tourist_attraction': '관광명소',
                 'lodging': '숙박',
+                'hotel': '호텔',
                 'hospital': '병원',
                 'school': '학교',
                 'gym': '헬스장',
@@ -601,7 +628,12 @@
                 'book_store': '서점',
                 'bakery': '베이커리',
                 'convenience_store': '편의점',
-                'supermarket': '슈퍼마켓'
+                'supermarket': '슈퍼마켓',
+                'subway_station': '지하철역',
+                'train_station': '기차역',
+                'bus_station': '버스 정류장',
+                'airport': '공항',
+                'gas_station': '주유소'
             };
 
             for (const type of types) {
@@ -634,7 +666,7 @@
             try {
                 const canvas = await html2canvas(previewContainer, {
                     scale: 2,
-                    backgroundColor: '#000000',
+                    backgroundColor: '#f8f9fa',
                     logging: false,
                     useCORS: true
                 });

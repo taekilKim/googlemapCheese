@@ -530,7 +530,7 @@
 
         // Fetch place data from Google Maps
         async function fetchPlaceData() {
-            const mapsLink = document.getElementById('mapsLink').value.trim();
+            let mapsLink = document.getElementById('mapsLink').value.trim();
             const errorMessage = document.getElementById('errorMessage');
             const successMessage = document.getElementById('successMessage');
             const loading = document.getElementById('loading');
@@ -549,6 +549,20 @@
             loading.style.display = 'block';
 
             try {
+                // Expand shortened URLs in the browser
+                if (mapsLink.includes('goo.gl') || mapsLink.includes('maps.app.goo.gl')) {
+                    try {
+                        const expandResponse = await fetch(mapsLink, {
+                            method: 'HEAD',
+                            redirect: 'follow'
+                        });
+                        mapsLink = expandResponse.url || mapsLink;
+                        console.log('Expanded URL:', mapsLink);
+                    } catch (e) {
+                        console.log('Client-side expansion failed, trying server');
+                    }
+                }
+
                 const response = await fetch(`${API_BASE_URL}/api/place-from-url`, {
                     method: 'POST',
                     headers: {

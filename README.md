@@ -2,9 +2,6 @@
 
 구글 지도 링크와 사진으로 인스타그램용 인증샷을 쉽게 만들 수 있는 웹 서비스입니다.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FtaekilKim%2FgooglemapCheese&env=GOOGLE_MAPS_API_KEY&envDescription=Google%20Maps%20API%20Key%20from%20Google%20Cloud%20Console&project-name=google-maps-photo-maker&repository-name=google-maps-photo-maker)
-
-![Demo](https://via.placeholder.com/800x600?text=Demo+Screenshot)
 
 > **⚡ 빠른 배포**: 위의 "Deploy with Vercel" 버튼을 클릭하면 2분 안에 배포 가능!
 

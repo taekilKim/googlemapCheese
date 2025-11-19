@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
+const { https } = require('follow-redirects');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +70,23 @@ function extractPlaceName(url) {
     return null;
 }
 
+// Function to expand shortened URLs using follow-redirects
+function expandUrl(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        }, (response) => {
+            // The final URL after all redirects
+            resolve(response.responseUrl || url);
+        }).on('error', (err) => {
+            console.error('URL expansion error:', err.message);
+            resolve(url); // Return original URL on error
+        });
+    });
+}
+
 // API endpoint to get place details from Google Maps URL
 app.post('/api/place-from-url', async (req, res) => {
     try {
@@ -84,35 +102,11 @@ app.post('/api/place-from-url', async (req, res) => {
             return res.status(500).json({ error: 'API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.' });
         }
 
-        // Expand shortened URLs
+        // Expand shortened URLs using follow-redirects
         let expandedUrl = url;
         if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
-            try {
-                const response = await axios.get(url, {
-                    maxRedirects: 10,
-                    validateStatus: function (status) {
-                        return status >= 200 && status < 400;
-                    },
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                });
-
-                // Try multiple ways to get the final URL
-                expandedUrl = response.request?.res?.responseUrl ||
-                             response.request?.path ||
-                             response.config?.url ||
-                             url;
-
-                // If we got a relative path, construct full URL
-                if (expandedUrl.startsWith('/')) {
-                    expandedUrl = 'https://www.google.com' + expandedUrl;
-                }
-
-                console.log('URL expansion successful');
-            } catch (error) {
-                console.log('URL expansion failed:', error.message);
-            }
+            expandedUrl = await expandUrl(url);
+            console.log('URL expansion:', url !== expandedUrl ? 'successful' : 'failed or not needed');
         }
 
         console.log('========================================');

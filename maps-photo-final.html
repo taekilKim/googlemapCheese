@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>구글 지도 인증샷 메이커</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 400;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .card-title {
+            font-size: 1.4em;
+            font-weight: 500;
+            margin-bottom: 20px;
+            color: #202124;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #5f6368;
+            margin-bottom: 8px;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .input-field:hover {
+            border-color: #bdc1c6;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+
+        .file-upload-area {
+            position: relative;
+            border: 2px dashed #dadce0;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .file-upload-area:hover {
+            border-color: #1a73e8;
+            background: #e8f0fe;
+        }
+
+        .file-upload-area.has-image {
+            border-color: #34a853;
+            background: #e6f4ea;
+        }
+
+        .file-upload-area input {
+            display: none;
+        }
+
+        .file-upload-icon {
+            font-size: 48px;
+            color: #5f6368;
+            margin-bottom: 12px;
+        }
+
+        .file-upload-text {
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .btn-fetch {
+            width: 100%;
+            padding: 14px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .btn-fetch:hover:not(:disabled) {
+            background: #1557b0;
+            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
+        }
+
+        .btn-fetch:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .status-error {
+            background: #fce8e6;
+            color: #c5221f;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-success {
+            background: #e6f4ea;
+            color: #137333;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-loading {
+            background: #e8f0fe;
+            color: #1967d2;
+            border: 1px solid #d2e3fc;
+        }
+
+        .api-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .api-info a {
+            color: #1967d2;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .api-info a:hover {
+            text-decoration: underline;
+        }
+
+        /* 개선된 프리뷰 - 사진이 덜 잘리도록 */
+        .phone-frame {
+            position: relative;
+            width: 100%;
+            max-width: 390px;
+            margin: 0 auto;
+            background: #000;
+            border-radius: 20px;
+            overflow: visible;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .phone-screen {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .photo-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .preview-image {
+            width: 100%;
+            display: block;
+        }
+
+        /* 카드가 사진 위에 살짝만 겹치도록 - 24px(border-radius)만큼만 오버랩 */
+        .maps-overlay {
+            position: relative;
+            margin-top: -24px;
+            background: #ffffff;
+            border-radius: 24px 24px 0 0;
+            padding: 16px;
+            box-shadow: 0 -1px 16px rgba(0,0,0,0.12);
+            z-index: 10;
+        }
+
+        .maps-drag-handle {
+            width: 32px;
+            height: 4px;
+            background: #dadce0;
+            border-radius: 2px;
+            margin: 0 auto 16px;
+        }
+
+        .maps-place-name {
+            font-size: 20px;
+            font-weight: 400;
+            color: #202124;
+            line-height: 24px;
+            margin-bottom: 8px;
+            letter-spacing: -0.2px;
+        }
+
+        .maps-rating-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .maps-rating-number {
+            font-size: 14px;
+            color: #202124;
+            font-weight: 400;
+        }
+
+        .maps-stars {
+            display: flex;
+            gap: 2px;
+        }
+
+        .maps-star {
+            color: #fbbc04;
+            font-size: 12px;
+        }
+
+        .maps-star.empty {
+            color: #dadce0;
+        }
+
+        .maps-review-count {
+            font-size: 14px;
+            color: #70757a;
+        }
+
+        .maps-info-section {
+            margin-bottom: 16px;
+        }
+
+        .maps-info-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 8px 0;
+            font-size: 14px;
+            color: #5f6368;
+            line-height: 20px;
+        }
+
+        .maps-info-icon {
+            font-size: 20px;
+            color: #70757a;
+            flex-shrink: 0;
+        }
+
+        .maps-info-text {
+            flex: 1;
+        }
+
+        .maps-buttons-row {
+            display: flex;
+            gap: 12px;
+            padding-top: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .maps-buttons-row::-webkit-scrollbar {
+            display: none;
+        }
+
+        .maps-action-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            min-width: 72px;
+            padding: 12px 8px;
+            background: #e8f0fe;
+            border: none;
+            border-radius: 12px;
+            cursor: default;
+        }
+
+        .maps-btn-icon {
+            font-size: 20px;
+            color: #1967d2;
+        }
+
+        .maps-btn-label {
+            font-size: 12px;
+            color: #1967d2;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .download-section {
+            margin-top: 25px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .download-btn {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-download {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .btn-instagram {
+            background: linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%);
+            color: white;
+        }
+
+        .btn-kakao {
+            background: #fee500;
+            color: #000;
+            grid-column: 1 / -1;
+        }
+
+        .empty-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 600px;
+            color: #70757a;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .empty-text {
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .helper-text {
+            font-size: 12px;
+            color: #70757a;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        function App() {
+            const [image, setImage] = useState(null);
+            const [mapsUrl, setMapsUrl] = useState('');
+            const [apiKey, setApiKey] = useState('');
+            const [placeData, setPlaceData] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [status, setStatus] = useState({ type: '', message: '' });
+            const canvasRef = useRef(null);
+
+            // API 키를 localStorage에 저장/불러오기
+            useEffect(() => {
+                const savedApiKey = localStorage.getItem('googleMapsApiKey');
+                if (savedApiKey) {
+                    setApiKey(savedApiKey);
+                }
+            }, []);
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => setImage(e.target.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const extractPlaceId = (url) => {
+                try {
+                    // Place ID 추출 패턴들
+                    const patterns = [
+                        /!1s([^!&?]+)/,              // !1s 패턴
+                        /place\/[^/]+\/([^/?]+)/,   // place/Name/ID
+                        /maps\/place\/[^/]+\/([^/?]+)/, // maps/place/Name/ID
+                        /\/(ChIJ[^/?&]+)/,          // ChIJ로 시작하는 ID
+                        /data=.*!1s([^!&?]+)/,      // data 파라미터
+                    ];
+
+                    for (const pattern of patterns) {
+                        const match = url.match(pattern);
+                        if (match && match[1]) {
+                            return decodeURIComponent(match[1]);
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Place ID 추출 오류:', error);
+                    return null;
+                }
+            };
+
+            const fetchPlaceData = async () => {
+                setStatus({ type: '', message: '' });
+                setLoading(true);
+
+                try {
+                    if (!apiKey) {
+                        throw new Error('Google Maps API 키를 입력해주세요.');
+                    }
+
+                    if (!mapsUrl) {
+                        throw new Error('구글 지도 URL을 입력해주세요.');
+                    }
+
+                    // API 키 저장
+                    localStorage.setItem('googleMapsApiKey', apiKey);
+
+                    const placeId = extractPlaceId(mapsUrl);
+                    
+                    if (!placeId) {
+                        throw new Error('유효한 구글 지도 링크를 입력해주세요. 장소 페이지의 URL을 복사해주세요.');
+                    }
+
+                    setStatus({ type: 'loading', message: '🔍 장소 정보를 가져오는 중...' });
+
+                    // Google Places API 직접 호출 (Place Details)
+                    const fields = [
+                        'name',
+                        'rating',
+                        'user_ratings_total',
+                        'types',
+                        'price_level',
+                        'formatted_address',
+                        'opening_hours',
+                        'formatted_phone_number',
+                        'website',
+                        'editorial_summary'
+                    ].join(',');
+
+                    const apiUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${apiKey}&language=ko`;
+                    
+                    // CORS 우회를 위한 프록시 사용
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+
+                    const response = await fetch(proxyUrl);
+                    const data = await response.json();
+
+                    if (data.status === 'OK' && data.result) {
+                        setPlaceData(data.result);
+                        setStatus({ 
+                            type: 'success', 
+                            message: `✅ "${data.result.name}" 정보를 성공적으로 가져왔습니다!` 
+                        });
+                    } else if (data.status === 'REQUEST_DENIED') {
+                        throw new Error('API 키가 유효하지 않거나 Places API가 활성화되지 않았습니다.');
+                    } else {
+                        throw new Error(data.error_message || `장소 정보를 가져올 수 없습니다. (${data.status})`);
+                    }
+                } catch (err) {
+                    console.error('API 오류:', err);
+                    setStatus({ 
+                        type: 'error', 
+                        message: `❌ ${err.message}` 
+                    });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const renderStars = (rating) => {
+                const stars = [];
+                const ratingNum = parseFloat(rating) || 0;
+                const fullStars = Math.floor(ratingNum);
+                const hasHalfStar = ratingNum % 1 >= 0.3;
+                
+                for (let i = 0; i < 5; i++) {
+                    if (i < fullStars) {
+                        stars.push(<span key={i} className="maps-star">★</span>);
+                    } else if (i === fullStars && hasHalfStar) {
+                        stars.push(<span key={i} className="maps-star">★</span>);
+                    } else {
+                        stars.push(<span key={i} className="maps-star empty">★</span>);
+                    }
+                }
+                return stars;
+            };
+
+            const getCategoryText = (types) => {
+                if (!types || types.length === 0) return '';
+                const typeMap = {
+                    'restaurant': '음식점',
+                    'cafe': '카페',
+                    'bar': '술집',
+                    'store': '상점',
+                    'shopping_mall': '쇼핑몰',
+                    'park': '공원',
+                    'museum': '박물관',
+                    'hospital': '병원',
+                    'school': '학교',
+                    'lodging': '숙박',
+                    'tourist_attraction': '관광명소'
+                };
+                const translated = types.slice(0, 2).map(t => typeMap[t] || t).filter(Boolean);
+                return translated.join(' · ') || types[0];
+            };
+
+            const getPriceLevel = (level) => {
+                if (!level) return '';
+                return '₩'.repeat(level);
+            };
+
+            const getOpeningHours = (openingHours) => {
+                if (!openingHours) return '';
+                if (openingHours.open_now) {
+                    return '영업 중';
+                } else {
+                    return '영업 종료';
+                }
+            };
+
+            const downloadImage = async () => {
+                const element = canvasRef.current;
+                if (!element) return;
+
+                try {
+                    const canvas = await html2canvas(element, {
+                        backgroundColor: '#000000',
+                        scale: 2,
+                        logging: false,
+                        useCORS: true,
+                        allowTaint: true
+                    });
+
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `google-maps-${Date.now()}.png`;
+                        link.href = url;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    }, 'image/png', 1.0);
+                } catch (error) {
+                    alert('이미지 저장 실패: ' + error.message);
+                }
+            };
+
+            const hasContent = image && placeData;
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>📍 구글 지도 인증샷 메이커</h1>
+                        <p>구글 지도 링크만 붙여넣으면 자동 완성!</p>
+                    </div>
+
+                    <div className="main-grid">
+                        <div className="card">
+                            <h2 className="card-title">설정</h2>
+
+                            <div className="api-info">
+                                <strong>🔑 API 키 필요</strong>
+                                <p style={{marginTop: '6px'}}>
+                                    <a href="https://console.cloud.google.com/google/maps-apis" target="_blank">
+                                        Google Cloud Console
+                                    </a>에서 Maps JavaScript API를 활성화하고 API 키를 발급받으세요. (무료 크레딧 사용 가능)
+                                </p>
+                            </div>
+
+                            <div className="input-group">
+                                <label className="input-label">🔑 Google Maps API Key</label>
+                                <input 
+                                    className="input-field"
+                                    type="password"
+                                    placeholder="AIzaSy..."
+                                    value={apiKey}
+                                    onChange={(e) => setApiKey(e.target.value)}
+                                />
+                                <div className="helper-text">
+                                    API 키는 브라우저에 저장되며, 서버로 전송되지 않습니다
+                                </div>
+                            </div>
+
+                            <div className="input-group">
+                                <label className="input-label">🔗 구글 지도 링크</label>
+                                <input 
+                                    className="input-field"
+                                    type="text"
+                                    placeholder="https://maps.google.com/..."
+                                    value={mapsUrl}
+                                    onChange={(e) => setMapsUrl(e.target.value)}
+                                />
+                                <div className="helper-text">
+                                    구글 지도에서 장소를 검색 → 공유 버튼 → 링크 복사
+                                </div>
+                            </div>
+
+                            <button 
+                                className="btn-fetch"
+                                onClick={fetchPlaceData}
+                                disabled={loading || !apiKey || !mapsUrl}
+                            >
+                                {loading ? '⏳ 불러오는 중...' : '🔍 장소 정보 자동으로 가져오기'}
+                            </button>
+
+                            {status.message && (
+                                <div className={`status-message status-${status.type}`}>
+                                    {status.message}
+                                </div>
+                            )}
+
+                            {placeData && (
+                                <div style={{marginTop: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '8px', fontSize: '13px'}}>
+                                    <strong>📍 {placeData.name}</strong>
+                                    <div style={{marginTop: '8px', color: '#5f6368', lineHeight: '1.6'}}>
+                                        {placeData.rating && <div>⭐ {placeData.rating} ({placeData.user_ratings_total}개 리뷰)</div>}
+                                        {placeData.types && <div>🏷️ {getCategoryText(placeData.types)}</div>}
+                                        {placeData.formatted_address && <div>📮 {placeData.formatted_address}</div>}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="input-group" style={{marginTop: '30px'}}>
+                                <label className="input-label">📸 사진 업로드</label>
+                                <label className={`file-upload-area ${image ? 'has-image' : ''}`}>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                    />
+                                    <div className="file-upload-icon">
+                                        {image ? '✓' : '📷'}
+                                    </div>
+                                    <div className="file-upload-text">
+                                        {image ? '사진이 업로드되었습니다' : '클릭하여 사진 선택'}
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="card">
+                            <h2 className="card-title">미리보기</h2>
+
+                            {hasContent ? (
+                                <>
+                                    <div className="phone-frame" ref={canvasRef}>
+                                        <div className="phone-screen">
+                                            <div className="photo-container">
+                                                <img 
+                                                    src={image}
+                                                    alt="Preview"
+                                                    className="preview-image"
+                                                />
+                                            </div>
+                                            <div className="maps-overlay">
+                                                <div className="maps-drag-handle"></div>
+                                                
+                                                <div className="maps-place-name">
+                                                    {placeData.name}
+                                                </div>
+
+                                                {placeData.rating && (
+                                                    <div className="maps-rating-row">
+                                                        <span className="maps-rating-number">{placeData.rating}</span>
+                                                        <div className="maps-stars">
+                                                            {renderStars(placeData.rating)}
+                                                        </div>
+                                                        {placeData.user_ratings_total && (
+                                                            <span className="maps-review-count">({placeData.user_ratings_total})</span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <div className="maps-info-section">
+                                                    {placeData.types && (
+                                                        <div className="maps-info-row">
+                                                            <span className="maps-info-icon">🏷️</span>
+                                                            <span className="maps-info-text">{getCategoryText(placeData.types)}</span>
+                                                        </div>
+                                                    )}
+                                                    {placeData.price_level && (
+                                                        <div className="maps-info-row">
+                                                            <span className="maps-info-icon">💰</span>
+                                                            <span className="maps-info-text">{getPriceLevel(placeData.price_level)}</span>
+                                                        </div>
+                                                    )}
+                                                    {placeData.opening_hours && (
+                                                        <div className="maps-info-row">
+                                                            <span className="maps-info-icon">🕐</span>
+                                                            <span className="maps-info-text">{getOpeningHours(placeData.opening_hours)}</span>
+                                                        </div>
+                                                    )}
+                                                    {placeData.formatted_address && (
+                                                        <div className="maps-info-row">
+                                                            <span className="maps-info-icon">📍</span>
+                                                            <span className="maps-info-text">{placeData.formatted_address}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="maps-buttons-row">
+                                                    <div className="maps-action-button">
+                                                        <span className="maps-btn-icon">🧭</span>
+                                                        <span className="maps-btn-label">경로</span>
+                                                    </div>
+                                                    <div className="maps-action-button">
+                                                        <span className="maps-btn-icon">🚀</span>
+                                                        <span className="maps-btn-label">시작</span>
+                                                    </div>
+                                                    <div className="maps-action-button">
+                                                        <span className="maps-btn-icon">💾</span>
+                                                        <span className="maps-btn-label">저장</span>
+                                                    </div>
+                                                    <div className="maps-action-button">
+                                                        <span className="maps-btn-icon">📞</span>
+                                                        <span className="maps-btn-label">전화</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="download-section">
+                                        <button className="download-btn btn-download" onClick={downloadImage}>
+                                            💾 이미지 저장
+                                        </button>
+                                        <button 
+                                            className="download-btn btn-instagram"
+                                            onClick={() => alert('이미지를 저장한 후 인스타그램 앱에서 업로드하세요!')}
+                                        >
+                                            📷 인스타그램
+                                        </button>
+                                        <button 
+                                            className="download-btn btn-kakao"
+                                            onClick={() => alert('이미지를 저장한 후 카카오톡에서 공유하세요!')}
+                                        >
+                                            💬 카카오톡
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="empty-preview">
+                                    <div className="empty-icon">📍</div>
+                                    <div className="empty-text">
+                                        구글 지도 링크를 입력하고<br/>
+                                        정보를 가져온 후 사진을 업로드하세요
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

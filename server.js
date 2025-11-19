@@ -88,15 +88,37 @@ app.post('/api/place-from-url', async (req, res) => {
         let expandedUrl = url;
         if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
             try {
-                const response = await axios.get(url, { maxRedirects: 5 });
-                expandedUrl = response.request.res.responseUrl || url;
+                const response = await axios.get(url, {
+                    maxRedirects: 10,
+                    validateStatus: function (status) {
+                        return status >= 200 && status < 400;
+                    },
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                // Try multiple ways to get the final URL
+                expandedUrl = response.request?.res?.responseUrl ||
+                             response.request?.path ||
+                             response.config?.url ||
+                             url;
+
+                // If we got a relative path, construct full URL
+                if (expandedUrl.startsWith('/')) {
+                    expandedUrl = 'https://www.google.com' + expandedUrl;
+                }
+
+                console.log('URL expansion successful');
             } catch (error) {
-                console.log('URL expansion failed, using original URL');
+                console.log('URL expansion failed:', error.message);
             }
         }
 
+        console.log('========================================');
         console.log('Original URL:', url);
         console.log('Expanded URL:', expandedUrl);
+        console.log('URL changed:', url !== expandedUrl);
 
         // Try to extract place ID
         let placeId = extractPlaceId(expandedUrl);

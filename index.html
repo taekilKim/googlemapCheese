@@ -220,6 +220,14 @@
             letter-spacing: 0;
         }
 
+        .place-name-secondary {
+            font-size: 16px;
+            font-weight: 400;
+            color: #5f6368;
+            line-height: 20px;
+            margin-top: 2px;
+        }
+
         .category {
             font-size: 14px;
             color: #5f6368;
@@ -437,7 +445,10 @@
                         </div>
                     </div>
                     <div class="maps-card">
-                        <div class="place-name" id="placeName">장소 이름</div>
+                        <div>
+                            <div class="place-name" id="placeName">장소 이름</div>
+                            <div class="place-name-secondary" id="placeNameSecondary" style="display: none;"></div>
+                        </div>
                         <div class="category" id="category">카테고리</div>
 
                         <div class="rating-section">
@@ -580,7 +591,18 @@
 
         // Update preview with place data
         function updatePreview(place) {
+            // Display primary name (local language)
             document.getElementById('placeName').textContent = place.name || '장소 이름';
+
+            // Display secondary name (Korean translation) if available and different
+            const secondaryNameElement = document.getElementById('placeNameSecondary');
+            if (place.name_korean && place.name_korean !== place.name) {
+                secondaryNameElement.textContent = place.name_korean;
+                secondaryNameElement.style.display = 'block';
+            } else {
+                secondaryNameElement.style.display = 'none';
+            }
+
             document.getElementById('category').textContent = getCategoryName(place.types);
             document.getElementById('ratingNumber').textContent = (place.rating || 0).toFixed(1);
             updateStars(place.rating || 0);

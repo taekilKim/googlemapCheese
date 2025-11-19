@@ -51,50 +51,82 @@ app.post('/api/place-from-url', async (req, res) => {
             detectedLang = 'zh-CN';
         }
 
-        // Build Accept-Language header with detected/requested language first
-        const acceptLanguage = `${detectedLang},en-US;q=0.9,en;q=0.8,ko;q=0.7,ja;q=0.6`;
+        console.log('Detected local language:', detectedLang);
 
-        console.log('Using Accept-Language:', acceptLanguage);
-
-        // Fetch the HTML page
-        const response = await axios.get(url, {
+        // Fetch both local language and Korean versions
+        const fetchOptions = {
             maxRedirects: 20,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': acceptLanguage
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+        };
+
+        // Fetch local language version
+        const localResponse = await axios.get(url, {
+            ...fetchOptions,
+            headers: {
+                ...fetchOptions.headers,
+                'Accept-Language': `${detectedLang},en;q=0.9`
             }
         });
 
-        // Parse HTML with cheerio
-        const $ = cheerio.load(response.data);
+        // Fetch Korean version (unless local language is already Korean)
+        let koreanResponse = null;
+        if (detectedLang !== 'ko') {
+            koreanResponse = await axios.get(url, {
+                ...fetchOptions,
+                headers: {
+                    ...fetchOptions.headers,
+                    'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8'
+                }
+            });
+        }
 
-        // Extract metadata from Open Graph and schema.org tags
-        const placeName = $('meta[property="og:title"]').attr('content') ||
-                         $('meta[itemprop="name"]').attr('content') ||
-                         $('title').text();
+        // Parse local language version
+        const $local = cheerio.load(localResponse.data);
+        const localName = $local('meta[property="og:title"]').attr('content') ||
+                         $local('meta[itemprop="name"]').attr('content') ||
+                         $local('title').text();
 
-        const description = $('meta[property="og:description"]').attr('content') ||
-                           $('meta[itemprop="description"]').attr('content');
+        const description = $local('meta[property="og:description"]').attr('content') ||
+                           $local('meta[itemprop="description"]').attr('content');
 
-        const image = $('meta[property="og:image"]').attr('content') ||
-                     $('meta[itemprop="image"]').attr('content');
+        const image = $local('meta[property="og:image"]').attr('content') ||
+                     $local('meta[itemprop="image"]').attr('content');
 
-        console.log('Place Name:', placeName);
+        // Parse Korean version if available
+        let koreanName = null;
+        if (koreanResponse) {
+            const $korean = cheerio.load(koreanResponse.data);
+            koreanName = $korean('meta[property="og:title"]').attr('content') ||
+                        $korean('meta[itemprop="name"]').attr('content') ||
+                        $korean('title').text();
+        }
+
+        console.log('Local Name:', localName);
+        console.log('Korean Name:', koreanName);
         console.log('Description:', description);
         console.log('Image:', image);
 
-        if (!placeName || placeName.includes('Google Maps') || placeName.includes('Google マップ')) {
+        if (!localName || localName.includes('Google Maps') || localName.includes('Google マップ')) {
             return res.status(404).json({
                 error: '장소 정보를 찾을 수 없습니다.',
                 debug: { url }
             });
         }
 
-        // Parse the place name and address
-        const nameParts = placeName.split(' · ');
-        const name = nameParts[0];
-        const address = nameParts.length > 1 ? nameParts.slice(1).join(' · ') : '';
+        // Parse the place name and address from local version
+        const localNameParts = localName.split(' · ');
+        const name = localNameParts[0];
+        const address = localNameParts.length > 1 ? localNameParts.slice(1).join(' · ') : '';
+
+        // Parse Korean name if available
+        let koreanNameOnly = null;
+        if (koreanName && !koreanName.includes('Google Maps') && !koreanName.includes('Google 지도')) {
+            const koreanNameParts = koreanName.split(' · ');
+            koreanNameOnly = koreanNameParts[0];
+        }
 
         // Parse the description for rating and category
         let rating = 0;
@@ -121,7 +153,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Try to extract actual rating and review count from page data
         // Google Maps embeds this data in JavaScript variables
-        const htmlContent = response.data;
+        const htmlContent = localResponse.data;
 
         // Look for rating pattern like: ["4.1",123]
         const ratingPattern = /\["([\d.]+)",(\d+)\]/g;
@@ -147,9 +179,10 @@ app.post('/api/place-from-url', async (req, res) => {
             console.log('Found rating from page data:', rating, 'Reviews:', reviewCount);
         }
 
-        // Build response in the same format as Places API
+        // Build response in the same format as Places API, but with dual language support
         const placeData = {
             name: name,
+            name_korean: koreanNameOnly, // Korean translation (null if same as local or not available)
             rating: rating,
             user_ratings_total: reviewCount,
             formatted_address: address,

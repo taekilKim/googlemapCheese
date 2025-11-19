@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
-const { https } = require('follow-redirects');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,33 +69,28 @@ function extractPlaceName(url) {
     return null;
 }
 
-// Function to expand shortened URLs using follow-redirects
-function expandUrl(url) {
-    return new Promise((resolve, reject) => {
-        const parsedUrl = new URL(url);
-        const options = {
-            hostname: parsedUrl.hostname,
-            path: parsedUrl.pathname + parsedUrl.search,
+// Function to expand shortened URLs using axios
+async function expandUrl(url) {
+    try {
+        const response = await axios.get(url, {
+            maxRedirects: 10,
+            validateStatus: (status) => status >= 200 && status < 400,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
-        };
-
-        https.get(options, (response) => {
-            // Get the final URL after all redirects
-            const finalUrl = response.responseUrl ||
-                           `https://${response.req.host}${response.req.path}` ||
-                           url;
-            console.log('Expanded to:', finalUrl);
-
-            // End the response to prevent hanging
-            response.resume();
-            resolve(finalUrl);
-        }).on('error', (err) => {
-            console.error('URL expansion error:', err.message);
-            resolve(url); // Return original URL on error
         });
-    });
+
+        // Get final URL from response
+        const finalUrl = response.request.res.responseUrl ||
+                        response.config.url ||
+                        url;
+
+        console.log('Expanded to:', finalUrl);
+        return finalUrl;
+    } catch (error) {
+        console.error('URL expansion error:', error.message);
+        return url; // Return original URL on error
+    }
 }
 
 // API endpoint to get place details from Google Maps URL

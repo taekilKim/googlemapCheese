@@ -70,11 +70,11 @@
                         <div class="rating-section">
                             <span class="rating-number" id="ratingNumber">0.0</span>
                             <div class="stars" id="starsContainer">
-                                <span class="star">star</span>
-                                <span class="star">star</span>
-                                <span class="star">star</span>
-                                <span class="star">star</span>
-                                <span class="star empty">star</span>
+                                <img class="star" src="/images/ic_star_rate_empty_14.png" alt="빈별">
+                                <img class="star" src="/images/ic_star_rate_empty_14.png" alt="빈별">
+                                <img class="star" src="/images/ic_star_rate_empty_14.png" alt="빈별">
+                                <img class="star" src="/images/ic_star_rate_empty_14.png" alt="빈별">
+                                <img class="star" src="/images/ic_star_rate_empty_14.png" alt="빈별">
                             </div>
                             <span class="review-count" id="reviewCount">(0)</span>
                             <span class="price-level" id="priceLevel" style="display: none;"></span>
@@ -277,17 +277,24 @@
             container.innerHTML = '';
 
             for (let i = 1; i <= 5; i++) {
-                const star = document.createElement('span');
-                star.className = 'star';
+                const img = document.createElement('img');
+                img.className = 'star';
+
                 if (i <= Math.floor(rating)) {
-                    star.textContent = 'star';
+                    // Filled star
+                    img.src = '/images/ic_star_rate_14.png';
+                    img.alt = '별';
                 } else if (i === Math.ceil(rating) && rating % 1 >= 0.5) {
-                    star.textContent = 'star_half';
+                    // Half star
+                    img.src = '/images/ic_star_rate_half_14.png';
+                    img.alt = '반쪽별';
                 } else {
-                    star.classList.add('empty');
-                    star.textContent = 'star_border';
+                    // Empty star
+                    img.src = '/images/ic_star_rate_empty_14.png';
+                    img.alt = '빈별';
                 }
-                container.appendChild(star);
+
+                container.appendChild(img);
             }
         }
 

@@ -54,6 +54,8 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Extract coordinates from URL for Places API
         let coordinates = null;
+        let placeId = null;
+
         const coordMatch = finalUrl.match(/@(-?[\d.]+),(-?[\d.]+)/);
         if (coordMatch) {
             coordinates = {
@@ -72,6 +74,18 @@ app.post('/api/place-from-url', async (req, res) => {
                 lng: parseFloat(lngMatch[1])
             };
             console.log('Extracted precise coordinates:', coordinates);
+        }
+
+        // Try to extract ftid parameter (Feature ID) from query URLs
+        const ftidMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
+        if (ftidMatch) {
+            const ftid = ftidMatch[1];
+            console.log('Extracted ftid:', ftid);
+
+            // Convert ftid hex format to Place ID
+            // ftid format: 0x357c99005667dab9:0x79a9350da17f03e3
+            // We'll use this to search for coordinates in the HTML
+            placeId = ftid;
         }
 
         // Detect language from URL or use provided language
@@ -218,6 +232,37 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Phone:', phoneNumber);
         console.log('Website:', website);
+
+        // If we don't have coordinates from URL but have ftid, try to extract from HTML
+        if (!coordinates && placeId) {
+            console.log('Attempting to extract coordinates from HTML response...');
+
+            // Look for coordinates in the HTML content (often in meta tags or embedded JSON)
+            const htmlContent = koreanResponse.data;
+
+            // Try to find coordinates in various formats
+            const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
+            const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
+
+            if (html3dMatch && html4dMatch) {
+                coordinates = {
+                    lat: parseFloat(html3dMatch[1]),
+                    lng: parseFloat(html4dMatch[1])
+                };
+                console.log('✓ Extracted coordinates from HTML:', coordinates);
+            } else {
+                // Try JSON-LD or other embedded data
+                const coordRegex = /"latitude"\s*:\s*(-?[\d.]+).*?"longitude"\s*:\s*(-?[\d.]+)/s;
+                const coordMatch2 = htmlContent.match(coordRegex);
+                if (coordMatch2) {
+                    coordinates = {
+                        lat: parseFloat(coordMatch2[1]),
+                        lng: parseFloat(coordMatch2[2])
+                    };
+                    console.log('✓ Extracted coordinates from JSON-LD:', coordinates);
+                }
+            }
+        }
 
         // Parse the place name and address from Korean version
         const koreanNameParts = koreanName.split(' · ');

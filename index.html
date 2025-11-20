@@ -589,15 +589,15 @@
             }
         }
 
-        // Update preview with place data
+        // Update preview with place data (matching Korean Google Maps display)
         function updatePreview(place) {
-            // Display primary name (local language)
+            // Display primary name (Korean/English - what Korean users see on Google Maps)
             document.getElementById('placeName').textContent = place.name || '장소 이름';
 
-            // Display secondary name (Korean translation) if available and different
+            // Display secondary name (local language - shown below if different from primary)
             const secondaryNameElement = document.getElementById('placeNameSecondary');
-            if (place.name_korean && place.name_korean !== place.name) {
-                secondaryNameElement.textContent = place.name_korean;
+            if (place.name_local && place.name_local !== place.name) {
+                secondaryNameElement.textContent = place.name_local;
                 secondaryNameElement.style.display = 'block';
             } else {
                 secondaryNameElement.style.display = 'none';

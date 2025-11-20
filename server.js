@@ -53,7 +53,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Detected local language:', detectedLang);
 
-        // Fetch both local language and Korean versions
+        // Fetch both Korean and local language versions
         const fetchOptions = {
             maxRedirects: 20,
             headers: {
@@ -62,70 +62,75 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         };
 
-        // Fetch local language version
-        const localResponse = await axios.get(url, {
+        // Fetch Korean version first (primary display name - what Korean users see on Google Maps)
+        const koreanResponse = await axios.get(url, {
             ...fetchOptions,
             headers: {
                 ...fetchOptions.headers,
-                'Accept-Language': `${detectedLang},en;q=0.9`
+                'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
             }
         });
 
-        // Fetch Korean version (unless local language is already Korean)
-        let koreanResponse = null;
+        // Fetch local language version (secondary display name - for places outside Korea)
+        let localResponse = null;
         if (detectedLang !== 'ko') {
-            koreanResponse = await axios.get(url, {
+            localResponse = await axios.get(url, {
                 ...fetchOptions,
                 headers: {
                     ...fetchOptions.headers,
-                    'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8'
+                    'Accept-Language': `${detectedLang},en;q=0.9`
                 }
             });
         }
 
-        // Parse local language version
-        const $local = cheerio.load(localResponse.data);
-        const localName = $local('meta[property="og:title"]').attr('content') ||
-                         $local('meta[itemprop="name"]').attr('content') ||
-                         $local('title').text();
+        // Parse Korean version (primary)
+        const $korean = cheerio.load(koreanResponse.data);
+        const koreanName = $korean('meta[property="og:title"]').attr('content') ||
+                          $korean('meta[itemprop="name"]').attr('content') ||
+                          $korean('title').text();
 
-        const description = $local('meta[property="og:description"]').attr('content') ||
-                           $local('meta[itemprop="description"]').attr('content');
+        const description = $korean('meta[property="og:description"]').attr('content') ||
+                           $korean('meta[itemprop="description"]').attr('content');
 
-        const image = $local('meta[property="og:image"]').attr('content') ||
-                     $local('meta[itemprop="image"]').attr('content');
+        const image = $korean('meta[property="og:image"]').attr('content') ||
+                     $korean('meta[itemprop="image"]').attr('content');
 
-        // Parse Korean version if available
-        let koreanName = null;
-        if (koreanResponse) {
-            const $korean = cheerio.load(koreanResponse.data);
-            koreanName = $korean('meta[property="og:title"]').attr('content') ||
-                        $korean('meta[itemprop="name"]').attr('content') ||
-                        $korean('title').text();
+        // Parse local language version if available (secondary)
+        let localName = null;
+        if (localResponse) {
+            const $local = cheerio.load(localResponse.data);
+            localName = $local('meta[property="og:title"]').attr('content') ||
+                       $local('meta[itemprop="name"]').attr('content') ||
+                       $local('title').text();
         }
 
-        console.log('Local Name:', localName);
-        console.log('Korean Name:', koreanName);
+        console.log('Korean Name (Primary):', koreanName);
+        console.log('Local Name (Secondary):', localName);
         console.log('Description:', description);
         console.log('Image:', image);
 
-        if (!localName || localName.includes('Google Maps') || localName.includes('Google マップ')) {
+        if (!koreanName || koreanName.includes('Google Maps') || koreanName.includes('Google 지도')) {
             return res.status(404).json({
                 error: '장소 정보를 찾을 수 없습니다.',
                 debug: { url }
             });
         }
 
-        // Parse the place name and address from local version
-        const localNameParts = localName.split(' · ');
-        const name = localNameParts[0];
-        const address = localNameParts.length > 1 ? localNameParts.slice(1).join(' · ') : '';
+        // Parse the place name and address from Korean version
+        const koreanNameParts = koreanName.split(' · ');
+        const primaryName = koreanNameParts[0];
+        const address = koreanNameParts.length > 1 ? koreanNameParts.slice(1).join(' · ') : '';
 
-        // Parse Korean name if available
-        let koreanNameOnly = null;
-        if (koreanName && !koreanName.includes('Google Maps') && !koreanName.includes('Google 지도')) {
-            const koreanNameParts = koreanName.split(' · ');
-            koreanNameOnly = koreanNameParts[0];
+        // Parse local name if available and different
+        let secondaryName = null;
+        if (localName && !localName.includes('Google Maps') && !localName.includes('Google マップ')) {
+            const localNameParts = localName.split(' · ');
+            const localNameOnly = localNameParts[0];
+
+            // Only show secondary name if it's different from primary
+            if (localNameOnly !== primaryName) {
+                secondaryName = localNameOnly;
+            }
         }
 
         // Parse the description for rating and category
@@ -179,10 +184,10 @@ app.post('/api/place-from-url', async (req, res) => {
             console.log('Found rating from page data:', rating, 'Reviews:', reviewCount);
         }
 
-        // Build response in the same format as Places API, but with dual language support
+        // Build response matching Korean Google Maps display format
         const placeData = {
-            name: name,
-            name_korean: koreanNameOnly, // Korean translation (null if same as local or not available)
+            name: primaryName, // Korean/English name (what Korean users see first)
+            name_local: secondaryName, // Local language name (shown below if different)
             rating: rating,
             user_ratings_total: reviewCount,
             formatted_address: address,

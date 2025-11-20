@@ -53,9 +53,33 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Detected local language:', detectedLang);
 
+        // If it's a shortened URL (goo.gl or maps.app.goo.gl), expand it first using curl
+        let finalUrl = url;
+        if (url.includes('goo.gl')) {
+            console.log('Expanding shortened URL with curl...');
+            try {
+                const { execSync } = require('child_process');
+                // Use curl to follow redirects and get final URL
+                const curlCommand = `curl -Ls -o /dev/null -w %{url_effective} "${url}"`;
+                const expandedUrl = execSync(curlCommand, { encoding: 'utf8', timeout: 10000 }).trim();
+                if (expandedUrl && expandedUrl.startsWith('http')) {
+                    finalUrl = expandedUrl;
+                    console.log('Expanded URL:', finalUrl);
+                } else {
+                    console.log('Could not expand URL, using original');
+                }
+            } catch (error) {
+                console.log('Error expanding URL:', error.message);
+                console.log('Using original URL');
+            }
+        }
+
         // Fetch both Korean and local language versions
         const fetchOptions = {
             maxRedirects: 20,
+            validateStatus: function (status) {
+                return status >= 200 && status < 400; // Accept redirects
+            },
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
@@ -63,7 +87,7 @@ app.post('/api/place-from-url', async (req, res) => {
         };
 
         // Fetch Korean version first (primary display name - what Korean users see on Google Maps)
-        const koreanResponse = await axios.get(url, {
+        const koreanResponse = await axios.get(finalUrl, {
             ...fetchOptions,
             headers: {
                 ...fetchOptions.headers,
@@ -74,7 +98,7 @@ app.post('/api/place-from-url', async (req, res) => {
         // Fetch local language version (secondary display name - for places outside Korea)
         let localResponse = null;
         if (detectedLang !== 'ko') {
-            localResponse = await axios.get(url, {
+            localResponse = await axios.get(finalUrl, {
                 ...fetchOptions,
                 headers: {
                     ...fetchOptions.headers,

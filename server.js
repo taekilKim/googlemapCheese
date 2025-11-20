@@ -31,6 +31,32 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Fetching metadata from:', url);
         console.log('Requested language:', language || 'auto');
 
+        // Extract Place ID from URL for Places API
+        let placeId = null;
+
+        // Pattern 1: /g/PLACE_ID format
+        const placeIdMatch1 = url.match(/\/g\/([a-zA-Z0-9_-]+)/);
+        if (placeIdMatch1) {
+            // Convert short ID to full Place ID (ChIJ format)
+            // We'll use the hex ID instead if available
+            placeId = placeIdMatch1[1];
+            console.log('Found short place ID:', placeId);
+        }
+
+        // Pattern 2: data=...!1s0xHEXID:0xHEXID format
+        const placeIdMatch2 = url.match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
+        if (placeIdMatch2) {
+            placeId = placeIdMatch2[1];
+            console.log('Found hex place ID:', placeId);
+        }
+
+        // Pattern 3: ftid= parameter
+        const placeIdMatch3 = url.match(/ftid=([^&]+)/);
+        if (placeIdMatch3) {
+            placeId = placeIdMatch3[1];
+            console.log('Found ftid place ID:', placeId);
+        }
+
         // Detect language from URL or use provided language
         let detectedLang = language || 'en';
 
@@ -52,6 +78,42 @@ app.post('/api/place-from-url', async (req, res) => {
         }
 
         console.log('Detected local language:', detectedLang);
+
+        // Try to get place details from Places API if we have a Place ID
+        let apiData = null;
+        if (placeId && process.env.GOOGLE_MAPS_API_KEY) {
+            console.log('Attempting to fetch from Places API...');
+            try {
+                const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+                // Use the legacy Places API (more compatible)
+                const apiUrl = `https://maps.googleapis.com/maps/api/place/details/json`;
+                const apiParams = {
+                    place_id: placeId,
+                    key: apiKey,
+                    language: detectedLang,
+                    fields: 'name,rating,user_ratings_total,price_level,business_status,types,formatted_address,formatted_phone_number,website,opening_hours'
+                };
+
+                const apiResponse = await axios.get(apiUrl, { params: apiParams, timeout: 5000 });
+
+                if (apiResponse.data.status === 'OK' && apiResponse.data.result) {
+                    apiData = apiResponse.data.result;
+                    console.log('✓ Places API success!');
+                    console.log('  Rating:', apiData.rating);
+                    console.log('  Reviews:', apiData.user_ratings_total);
+                    console.log('  Price Level:', apiData.price_level);
+                    console.log('  Business Status:', apiData.business_status);
+                } else {
+                    console.log('Places API returned:', apiResponse.data.status);
+                }
+            } catch (error) {
+                console.log('Places API error:', error.message);
+                console.log('Falling back to HTML parsing...');
+            }
+        } else {
+            console.log('No Place ID or API key, using HTML parsing only');
+        }
 
         // If it's a shortened URL (goo.gl or maps.app.goo.gl), expand it first using curl
         let finalUrl = url;
@@ -334,6 +396,41 @@ app.post('/api/place-from-url', async (req, res) => {
                     reviewCount = possibleReviews;
                     console.log('Found reviews from keywords:', reviewCount);
                 }
+            }
+        }
+
+        // Use API data if available, otherwise use HTML-parsed data
+        if (apiData) {
+            console.log('Using Places API data as primary source');
+            if (apiData.rating) rating = apiData.rating;
+            if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
+            if (apiData.price_level !== undefined) {
+                // Convert numeric price level (0-4) to symbols based on language
+                let currencySymbol = '$';
+                if (detectedLang === 'ko') currencySymbol = '₩';
+                else if (detectedLang === 'ja') currencySymbol = '¥';
+                else if (detectedLang === 'zh-CN' || detectedLang === 'zh-TW') currencySymbol = '¥';
+                else if (detectedLang === 'fr' || detectedLang === 'de' || detectedLang === 'it' || detectedLang === 'es') currencySymbol = '€';
+                else if (detectedLang === 'en-GB') currencySymbol = '£';
+
+                const priceSymbols = ['', currencySymbol, currencySymbol.repeat(2), currencySymbol.repeat(3), currencySymbol.repeat(4)];
+                priceLevel = priceSymbols[apiData.price_level] || priceLevel;
+            }
+            if (apiData.business_status) {
+                // Convert to Korean
+                const statusMap = {
+                    'OPERATIONAL': '영업 중',
+                    'CLOSED_TEMPORARILY': '임시 휴업',
+                    'CLOSED_PERMANENTLY': '폐업함'
+                };
+                businessStatus = statusMap[apiData.business_status] || apiData.business_status;
+            }
+            if (apiData.formatted_phone_number) phoneNumber = apiData.formatted_phone_number;
+            if (apiData.website) website = apiData.website;
+            if (apiData.formatted_address && !address) address = apiData.formatted_address;
+            if (apiData.types && apiData.types.length > 0 && !category) {
+                // Use first type as category
+                category = apiData.types[0].replace(/_/g, ' ');
             }
         }
 

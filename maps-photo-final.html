@@ -62,6 +62,55 @@
             }
         }
 
+        /* 모바일 반응형 스타일 */
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .header p {
+                font-size: 0.95em;
+            }
+
+            .card {
+                padding: 15px;
+                border-radius: 12px;
+            }
+
+            .card-title {
+                font-size: 1.2em;
+            }
+
+            .phone-frame {
+                max-width: 100%;
+                border-radius: 12px;
+            }
+
+            .phone-screen {
+                border-radius: 12px;
+            }
+
+            .maps-overlay {
+                padding: 12px;
+            }
+
+            .maps-place-name {
+                font-size: 18px;
+            }
+
+            .maps-buttons-row {
+                gap: 8px;
+            }
+
+            .maps-action-button {
+                min-width: 70px;
+            }
+        }
+
         .card {
             background: white;
             border-radius: 20px;
@@ -232,6 +281,43 @@
             background: #000;
             border-radius: 20px;
             overflow: hidden;
+        }
+
+        /* 헤더 */
+        .maps-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 11px 8px;
+            z-index: 20;
+        }
+
+        .header-right-icons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .header-icon-btn img {
+            width: 24px;
+            height: 24px;
+            display: block;
         }
 
         .photo-container {
@@ -756,8 +842,23 @@
                                 <>
                                     <div className="phone-frame" ref={canvasRef}>
                                         <div className="phone-screen">
+                                            {/* 헤더 */}
+                                            <div className="maps-header">
+                                                <button className="header-icon-btn">
+                                                    <img src="/images/back.svg" alt="back" width="24" height="24" />
+                                                </button>
+                                                <div className="header-right-icons">
+                                                    <button className="header-icon-btn">
+                                                        <img src="/images/share_white.svg" alt="share" width="24" height="24" />
+                                                    </button>
+                                                    <button className="header-icon-btn">
+                                                        <img src="/images/more.svg" alt="more" width="24" height="24" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             <div className="photo-container">
-                                                <img 
+                                                <img
                                                     src={image}
                                                     alt="Preview"
                                                     className="preview-image"

@@ -239,15 +239,16 @@ app.post('/api/place-from-url', async (req, res) => {
             // Method 1: Convert ftid to ludocid (decimal Place ID)
             // ftid format: 0x357c99005667dab9:0x79a9350da17f03e3
             // Second part after colon is the ludocid in hexadecimal
+            let ludocidFromFtid = null;
             const ftidParts = placeId.split(':');
             if (ftidParts.length === 2) {
                 const hexLudocid = ftidParts[1].replace('0x', '');
                 try {
-                    const ludocid = BigInt('0x' + hexLudocid).toString();
-                    console.log('Converted ftid to ludocid:', ludocid);
+                    ludocidFromFtid = BigInt('0x' + hexLudocid).toString();
+                    console.log('Converted ftid to ludocid:', ludocidFromFtid);
 
                     // Search for this ludocid in HTML
-                    if (htmlContent.includes(ludocid)) {
+                    if (htmlContent.includes(ludocidFromFtid)) {
                         console.log('✓ Found ludocid in HTML content');
                     }
                 } catch (e) {
@@ -266,14 +267,20 @@ app.post('/api/place-from-url', async (req, res) => {
                 console.log('✓ Found ChIJ Place ID:', extractedPlaceId);
             }
 
-            // Pattern 2: ludocid in various formats
+            // Pattern 2: ludocid in HTML
             if (!extractedPlaceId) {
                 const ludocidPattern = /ludocid[=:](\d+)/i;
                 const ludocidMatch = htmlContent.match(ludocidPattern);
                 if (ludocidMatch) {
                     extractedPlaceId = ludocidMatch[1];
-                    console.log('✓ Found ludocid:', extractedPlaceId);
+                    console.log('✓ Found ludocid in HTML:', extractedPlaceId);
                 }
+            }
+
+            // Pattern 3: Use ludocid converted from ftid as fallback
+            if (!extractedPlaceId && ludocidFromFtid) {
+                extractedPlaceId = ludocidFromFtid;
+                console.log('✓ Using ludocid from ftid conversion:', extractedPlaceId);
             }
 
             // If we found a Place ID, store it for Place Details API
@@ -535,8 +542,8 @@ app.post('/api/place-from-url', async (req, res) => {
         let apiData = null;
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-        // Strategy 1: If we have Place ID, use Place Details API directly (NO COORDINATES NEEDED!)
-        if (apiKey && placeId && placeId.startsWith('ChIJ')) {
+        // Strategy 1: If we have Place ID (ChIJ... or ludocid), use Place Details API directly (NO COORDINATES NEEDED!)
+        if (apiKey && placeId && (placeId.startsWith('ChIJ') || /^\d+$/.test(placeId))) {
             console.log('Attempting Places API (New) v1 with Place Details...');
             console.log('Using Place ID:', placeId);
             try {

@@ -293,12 +293,24 @@ app.post('/api/place-from-url', async (req, res) => {
 
         if (rating === 0 || reviewCount === 0) {
             // Pattern 2: Look for aria-label with rating info
-            const ariaPattern = /aria-label="([\d.]+)(?:점|stars?).*?(\d+)(?:개|reviews?)/i;
-            const ariaMatch = htmlContent.match(ariaPattern);
-            if (ariaMatch) {
-                if (rating === 0) rating = parseFloat(ariaMatch[1]);
-                if (reviewCount === 0) reviewCount = parseInt(ariaMatch[2].replace(/,/g, ''));
-                console.log('Found from aria-label:', rating, 'Reviews:', reviewCount);
+            // Korean format: aria-label="별표 3.5개 "
+            const ariaRatingPattern = /aria-label="별표\s+([\d.]+)개/i;
+            const ariaRatingMatch = htmlContent.match(ariaRatingPattern);
+            if (ariaRatingMatch && rating === 0) {
+                rating = parseFloat(ariaRatingMatch[1]);
+                console.log('Found rating from aria-label (별표):', rating);
+            }
+
+            // Look for review count in aria-label
+            // Format: aria-label="리뷰 123개" or aria-label="123 reviews"
+            const ariaReviewPattern = /aria-label="(?:리뷰\s+)?([\d,]+)(?:\s*개|\s*reviews?)"/i;
+            const ariaReviewMatch = htmlContent.match(ariaReviewPattern);
+            if (ariaReviewMatch && reviewCount === 0) {
+                const possibleReviews = parseInt(ariaReviewMatch[1].replace(/,/g, ''));
+                if (possibleReviews > 0 && possibleReviews < 10000000) {
+                    reviewCount = possibleReviews;
+                    console.log('Found reviews from aria-label:', reviewCount);
+                }
             }
         }
 

@@ -1,7 +1,7 @@
 /* Google Sans font for Android users */
 @font-face {
     font-family: 'Google Sans';
-    src: url('fonts/google sans.otf') format('opentype');
+    src: url('/fonts/google sans.otf') format('opentype');
     font-weight: normal;
     font-style: normal;
     font-display: swap;

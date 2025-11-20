@@ -264,22 +264,10 @@ button:disabled {
 }
 
 .star {
-    color: #fbbc04;
-    font-size: 16px;
-    font-family: 'Material Icons';
-    font-weight: normal;
-    font-style: normal;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
+    width: 14px;
+    height: 14px;
     display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-}
-
-.star.empty {
-    color: #dadce0;
+    vertical-align: middle;
 }
 
 .review-count {

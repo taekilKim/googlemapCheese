@@ -269,6 +269,110 @@
             }
 
             document.getElementById('address').textContent = place.formatted_address || '주소 없음';
+
+            // Update action buttons with actual links
+            updateActionButtons(place);
+        }
+
+        // Update action buttons based on available data
+        function updateActionButtons(place) {
+            const buttonsContainer = document.querySelector('.action-buttons');
+            if (!buttonsContainer) return;
+
+            // Clear existing buttons
+            buttonsContainer.innerHTML = '';
+
+            // 1. Directions button (always show if we have directions_uri or google_maps_uri)
+            if (place.directions_uri || place.google_maps_uri) {
+                const directionsBtn = createActionButton(
+                    'directions',
+                    '길찾기',
+                    place.directions_uri || place.google_maps_uri + '/directions'
+                );
+                buttonsContainer.appendChild(directionsBtn);
+            }
+
+            // 2. Call button (only if phone number available)
+            if (place.phone_number || place.national_phone_number) {
+                const phoneNumber = place.national_phone_number || place.phone_number;
+                const callBtn = createActionButton(
+                    'phone',
+                    '전화',
+                    'tel:' + phoneNumber.replace(/[^0-9+]/g, '')
+                );
+                buttonsContainer.appendChild(callBtn);
+            }
+
+            // 3. Website button (if available)
+            if (place.website) {
+                const websiteBtn = createActionButton(
+                    'language',
+                    '웹사이트',
+                    place.website
+                );
+                buttonsContainer.appendChild(websiteBtn);
+            }
+
+            // 4. Reservation button (if reservable)
+            if (place.reservable) {
+                const reserveBtn = createActionButton(
+                    'event_available',
+                    '예약',
+                    place.google_maps_uri || '#'
+                );
+                buttonsContainer.appendChild(reserveBtn);
+            }
+
+            // 5. Share button (always show)
+            const shareBtn = createActionButton(
+                'share',
+                '공유',
+                '#',
+                () => {
+                    if (navigator.share && place.google_maps_uri) {
+                        navigator.share({
+                            title: place.name,
+                            text: place.name + ' - ' + (place.formatted_address || ''),
+                            url: place.google_maps_uri
+                        }).catch(err => console.log('공유 실패:', err));
+                    } else if (place.google_maps_uri) {
+                        // Fallback: copy to clipboard
+                        navigator.clipboard.writeText(place.google_maps_uri)
+                            .then(() => alert('링크가 복사되었습니다!'))
+                            .catch(err => console.log('복사 실패:', err));
+                    }
+                }
+            );
+            buttonsContainer.appendChild(shareBtn);
+        }
+
+        // Helper function to create action button
+        function createActionButton(icon, label, href, onClick) {
+            const button = document.createElement('button');
+            button.className = 'action-btn';
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'action-icon';
+            iconSpan.textContent = icon;
+
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = label;
+
+            button.appendChild(iconSpan);
+            button.appendChild(labelSpan);
+
+            if (onClick) {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    onClick();
+                });
+            } else if (href && href !== '#') {
+                button.addEventListener('click', () => {
+                    window.open(href, '_blank', 'noopener,noreferrer');
+                });
+            }
+
+            return button;
         }
 
         // Update stars based on rating

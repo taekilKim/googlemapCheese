@@ -795,21 +795,33 @@
                                                 </div>
 
                                                 <div className="maps-buttons-row">
+                                                    {(placeData.directions_uri || placeData.google_maps_uri) && (
+                                                        <div className="maps-action-button">
+                                                            <span className="maps-btn-icon">🧭</span>
+                                                            <span className="maps-btn-label">길찾기</span>
+                                                        </div>
+                                                    )}
+                                                    {(placeData.phone_number || placeData.national_phone_number) && (
+                                                        <div className="maps-action-button">
+                                                            <span className="maps-btn-icon">📞</span>
+                                                            <span className="maps-btn-label">전화</span>
+                                                        </div>
+                                                    )}
+                                                    {placeData.website && (
+                                                        <div className="maps-action-button">
+                                                            <span className="maps-btn-icon">🌐</span>
+                                                            <span className="maps-btn-label">웹사이트</span>
+                                                        </div>
+                                                    )}
+                                                    {placeData.reservable && (
+                                                        <div className="maps-action-button">
+                                                            <span className="maps-btn-icon">📅</span>
+                                                            <span className="maps-btn-label">예약</span>
+                                                        </div>
+                                                    )}
                                                     <div className="maps-action-button">
-                                                        <span className="maps-btn-icon">🧭</span>
-                                                        <span className="maps-btn-label">경로</span>
-                                                    </div>
-                                                    <div className="maps-action-button">
-                                                        <span className="maps-btn-icon">🚀</span>
-                                                        <span className="maps-btn-label">시작</span>
-                                                    </div>
-                                                    <div className="maps-action-button">
-                                                        <span className="maps-btn-icon">💾</span>
-                                                        <span className="maps-btn-label">저장</span>
-                                                    </div>
-                                                    <div className="maps-action-button">
-                                                        <span className="maps-btn-icon">📞</span>
-                                                        <span className="maps-btn-label">전화</span>
+                                                        <span className="maps-btn-icon">🔗</span>
+                                                        <span className="maps-btn-label">공유</span>
                                                     </div>
                                                 </div>
                                             </div>

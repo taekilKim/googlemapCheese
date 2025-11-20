@@ -274,7 +274,7 @@
             updateActionButtons(place);
         }
 
-        // Update action buttons based on available data
+        // Update action buttons based on available data (matches Google Maps UI)
         function updateActionButtons(place) {
             const buttonsContainer = document.querySelector('.action-buttons');
             if (!buttonsContainer) return;
@@ -282,68 +282,56 @@
             // Clear existing buttons
             buttonsContainer.innerHTML = '';
 
-            // 1. Directions button (always show if we have directions_uri or google_maps_uri)
+            // Google Maps standard button order: 경로, 주문, 통화, 저장
+            // Only show buttons that are available for this specific place
+
+            // 1. 경로 (Directions) - always show if we have any URI
             if (place.directions_uri || place.google_maps_uri) {
                 const directionsBtn = createActionButton(
                     'directions',
-                    '길찾기',
-                    place.directions_uri || place.google_maps_uri + '/directions'
+                    '경로',
+                    place.directions_uri || (place.google_maps_uri ? place.google_maps_uri + '/directions' : '#')
                 );
                 buttonsContainer.appendChild(directionsBtn);
             }
 
-            // 2. Call button (only if phone number available)
+            // 2. 주문 (Order) - show only if delivery or takeout is available
+            if (place.delivery || place.takeout) {
+                const orderBtn = createActionButton(
+                    'shopping_bag',
+                    '주문',
+                    place.google_maps_uri || '#'
+                );
+                buttonsContainer.appendChild(orderBtn);
+            }
+
+            // 3. 통화 (Call) - show only if phone number available
             if (place.phone_number || place.national_phone_number) {
                 const phoneNumber = place.national_phone_number || place.phone_number;
                 const callBtn = createActionButton(
                     'phone',
-                    '전화',
+                    '통화',
                     'tel:' + phoneNumber.replace(/[^0-9+]/g, '')
                 );
                 buttonsContainer.appendChild(callBtn);
             }
 
-            // 3. Website button (if available)
-            if (place.website) {
-                const websiteBtn = createActionButton(
-                    'language',
-                    '웹사이트',
-                    place.website
-                );
-                buttonsContainer.appendChild(websiteBtn);
-            }
-
-            // 4. Reservation button (if reservable)
-            if (place.reservable) {
-                const reserveBtn = createActionButton(
-                    'event_available',
-                    '예약',
-                    place.google_maps_uri || '#'
-                );
-                buttonsContainer.appendChild(reserveBtn);
-            }
-
-            // 5. Share button (always show)
-            const shareBtn = createActionButton(
-                'share',
-                '공유',
+            // 4. 저장 (Save) - always show, matches Google Maps UI
+            const saveBtn = createActionButton(
+                'bookmark_border',
+                '저장',
                 '#',
                 () => {
-                    if (navigator.share && place.google_maps_uri) {
-                        navigator.share({
-                            title: place.name,
-                            text: place.name + ' - ' + (place.formatted_address || ''),
-                            url: place.google_maps_uri
-                        }).catch(err => console.log('공유 실패:', err));
-                    } else if (place.google_maps_uri) {
-                        // Fallback: copy to clipboard
-                        navigator.clipboard.writeText(place.google_maps_uri)
-                            .then(() => alert('링크가 복사되었습니다!'))
-                            .catch(err => console.log('복사 실패:', err));
+                    // Toggle bookmark icon (visual feedback only)
+                    const icon = saveBtn.querySelector('.action-icon');
+                    if (icon.textContent === 'bookmark_border') {
+                        icon.textContent = 'bookmark';
+                    } else {
+                        icon.textContent = 'bookmark_border';
                     }
                 }
             );
-            buttonsContainer.appendChild(shareBtn);
+            buttonsContainer.appendChild(saveBtn);
         }
 
         // Helper function to create action button

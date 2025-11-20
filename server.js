@@ -31,28 +31,6 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Fetching metadata from:', url);
         console.log('Requested language:', language || 'auto');
 
-        // Detect language from URL or use provided language
-        let detectedLang = language || 'en';
-
-        // Try to detect language from URL domain
-        if (url.includes('.co.jp')) {
-            detectedLang = 'ja';
-        } else if (url.includes('.co.kr')) {
-            detectedLang = 'ko';
-        } else if (url.includes('.fr')) {
-            detectedLang = 'fr';
-        } else if (url.includes('.de')) {
-            detectedLang = 'de';
-        } else if (url.includes('.it')) {
-            detectedLang = 'it';
-        } else if (url.includes('.es')) {
-            detectedLang = 'es';
-        } else if (url.includes('.cn') || url.includes('.com.cn')) {
-            detectedLang = 'zh-CN';
-        }
-
-        console.log('Detected local language:', detectedLang);
-
         // If it's a shortened URL (goo.gl or maps.app.goo.gl), expand it first using curl
         let finalUrl = url;
         if (url.includes('goo.gl')) {
@@ -95,6 +73,50 @@ app.post('/api/place-from-url', async (req, res) => {
             };
             console.log('Extracted precise coordinates:', coordinates);
         }
+
+        // Detect language from URL or use provided language
+        // IMPORTANT: This must happen AFTER URL expansion and coordinate extraction
+        let detectedLang = language || 'en';
+
+        // Try to detect language from URL domain
+        if (finalUrl.includes('.co.jp') || finalUrl.includes('Japan') || finalUrl.includes('日本')) {
+            detectedLang = 'ja';
+        } else if (finalUrl.includes('.co.kr') || finalUrl.includes('Korea') || finalUrl.includes('한국')) {
+            detectedLang = 'ko';
+        } else if (finalUrl.includes('.fr') || finalUrl.includes('France')) {
+            detectedLang = 'fr';
+        } else if (finalUrl.includes('.de') || finalUrl.includes('Germany') || finalUrl.includes('Deutschland')) {
+            detectedLang = 'de';
+        } else if (finalUrl.includes('.it') || finalUrl.includes('Italy') || finalUrl.includes('Italia')) {
+            detectedLang = 'it';
+        } else if (finalUrl.includes('.es') || finalUrl.includes('Spain') || finalUrl.includes('España')) {
+            detectedLang = 'es';
+        } else if (finalUrl.includes('.cn') || finalUrl.includes('.com.cn') || finalUrl.includes('China')) {
+            detectedLang = 'zh-CN';
+        } else if (coordinates) {
+            // Fallback: detect language from coordinates if available
+            const lat = coordinates.lat;
+            const lng = coordinates.lng;
+
+            // Coordinate-based country detection (approximate bounding boxes)
+            if (lat >= 24 && lat <= 46 && lng >= 123 && lng <= 146) {
+                detectedLang = 'ja'; // Japan
+            } else if (lat >= 33 && lat <= 43 && lng >= 124 && lng <= 132) {
+                detectedLang = 'ko'; // South Korea
+            } else if (lat >= 18 && lat <= 54 && lng >= 73 && lng <= 135) {
+                detectedLang = 'zh-CN'; // China
+            } else if (lat >= 41 && lat <= 51 && lng >= -5 && lng <= 10) {
+                detectedLang = 'fr'; // France
+            } else if (lat >= 47 && lat <= 55 && lng >= 5 && lng <= 15) {
+                detectedLang = 'de'; // Germany
+            } else if (lat >= 36 && lat <= 47 && lng >= 6 && lng <= 19) {
+                detectedLang = 'it'; // Italy
+            } else if (lat >= 36 && lat <= 44 && lng >= -9 && lng <= 4) {
+                detectedLang = 'es'; // Spain
+            }
+        }
+
+        console.log('Detected local language:', detectedLang);
 
         // Fetch both Korean and local language versions
         const fetchOptions = {

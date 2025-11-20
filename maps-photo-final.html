@@ -714,10 +714,19 @@
                             {placeData && (
                                 <div style={{marginTop: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '8px', fontSize: '13px'}}>
                                     <strong>📍 {placeData.name}</strong>
+                                    {placeData.name_local && placeData.name_local !== placeData.name && (
+                                        <div style={{color: '#70757a', marginTop: '4px'}}>{placeData.name_local}</div>
+                                    )}
                                     <div style={{marginTop: '8px', color: '#5f6368', lineHeight: '1.6'}}>
                                         {placeData.rating && <div>⭐ {placeData.rating} ({placeData.user_ratings_total}개 리뷰)</div>}
-                                        {placeData.types && <div>🏷️ {getCategoryText(placeData.types)}</div>}
-                                        {placeData.formatted_address && <div>📮 {placeData.formatted_address}</div>}
+                                        {(placeData.types || placeData.price_level) && (
+                                            <div>
+                                                {placeData.types && getCategoryText(placeData.types)}
+                                                {placeData.types && placeData.price_level && ' · '}
+                                                {placeData.price_level}
+                                            </div>
+                                        )}
+                                        {placeData.business_status && <div>{placeData.business_status}</div>}
                                     </div>
                                 </div>
                             )}

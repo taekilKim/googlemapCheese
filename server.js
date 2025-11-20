@@ -80,7 +80,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Extract coordinates from URL for Places API
         let coordinates = null;
-        let placeId = null;
+        let placeId = null;  // Will be used for ftid-based URLs
 
         const coordMatch = finalUrl.match(/@(-?[\d.]+),(-?[\d.]+)/);
         if (coordMatch) {
@@ -102,16 +102,11 @@ app.post('/api/place-from-url', async (req, res) => {
             console.log('Extracted precise coordinates:', coordinates);
         }
 
-        // Try to extract ftid parameter (Feature ID) from query URLs
+        // Extract ftid parameter for query-based URLs
         const ftidMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
         if (ftidMatch) {
-            const ftid = ftidMatch[1];
-            console.log('Extracted ftid:', ftid);
-
-            // Convert ftid hex format to Place ID
-            // ftid format: 0x357c99005667dab9:0x79a9350da17f03e3
-            // We'll use this to search for coordinates in the HTML
-            placeId = ftid;
+            placeId = ftidMatch[1];  // Store ftid as placeId for now
+            console.log('Extracted ftid:', placeId);
         }
 
         // Detect language from URL or use provided language
@@ -259,106 +254,68 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Phone:', phoneNumber);
         console.log('Website:', website);
 
-        // Helper function to validate coordinates
-        const isValidCoordinates = (coords) => {
-            if (!coords || typeof coords.lat !== 'number' || typeof coords.lng !== 'number') {
-                return false;
-            }
-            const lat = coords.lat;
-            const lng = coords.lng;
-            return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-        };
-
-        // If we don't have coordinates from URL but have ftid, try to extract from HTML
-        if (!coordinates && placeId) {
-            console.log('Attempting to extract coordinates from HTML response...');
-
-            // Look for coordinates in the HTML content (often in meta tags or embedded JSON)
+        // If we have ftid but no coordinates, try to extract from HTML
+        if (placeId && !coordinates) {
+            console.log('Attempting to extract coordinates and Place ID from HTML for ftid URL...');
             const htmlContent = koreanResponse.data;
-            let extractedCoords = null;
 
-            // Method 1: Try !3d and !4d patterns (most common in Google Maps URLs)
+            // Try to find Place ID in HTML (various patterns)
+            const placeIdPatterns = [
+                /ludocid[=:](\d+)/i,
+                /data-fid[=:]"([^"]+)"/i,
+                /"([A-Za-z0-9_-]{20,})"/,  // Place IDs are usually 20+ chars
+            ];
+
+            for (const pattern of placeIdPatterns) {
+                const match = htmlContent.match(pattern);
+                if (match) {
+                    const extractedPlaceId = match[1];
+                    console.log('Found potential Place ID:', extractedPlaceId);
+                    // We'll keep using ftid for now, but log this for debugging
+                    break;
+                }
+            }
+
+            // Try to extract coordinates from HTML with validation
+            const isValidCoord = (lat, lng) => {
+                return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+            };
+
+            // Method 1: !3d and !4d patterns
             const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
             const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
-
             if (html3dMatch && html4dMatch) {
-                extractedCoords = {
-                    lat: parseFloat(html3dMatch[1]),
-                    lng: parseFloat(html4dMatch[1])
-                };
-                if (isValidCoordinates(extractedCoords)) {
-                    coordinates = extractedCoords;
-                    console.log('✓ Extracted coordinates from !3d/!4d:', coordinates);
-                } else {
-                    console.log('✗ Invalid coordinates from !3d/!4d:', extractedCoords);
+                const lat = parseFloat(html3dMatch[1]);
+                const lng = parseFloat(html4dMatch[1]);
+                if (isValidCoord(lat, lng)) {
+                    coordinates = { lat, lng };
+                    console.log('✓ Extracted coordinates from HTML (!3d/!4d):', coordinates);
                 }
             }
 
-            // Method 2: Try @lat,lng pattern (only if previous method failed)
-            if (!coordinates) {
-                const atMatch = htmlContent.match(/@(-?[\d.]+),(-?[\d.]+)/);
-                if (atMatch) {
-                    extractedCoords = {
-                        lat: parseFloat(atMatch[1]),
-                        lng: parseFloat(atMatch[2])
-                    };
-                    if (isValidCoordinates(extractedCoords)) {
-                        coordinates = extractedCoords;
-                        console.log('✓ Extracted coordinates from @ pattern:', coordinates);
-                    } else {
-                        console.log('✗ Invalid coordinates from @ pattern:', extractedCoords);
-                    }
-                }
-            }
-
-            // Method 3: Try center= parameter
+            // Method 2: center= parameter
             if (!coordinates) {
                 const centerMatch = htmlContent.match(/center=(-?[\d.]+)%2C(-?[\d.]+)/);
                 if (centerMatch) {
-                    extractedCoords = {
-                        lat: parseFloat(centerMatch[1]),
-                        lng: parseFloat(centerMatch[2])
-                    };
-                    if (isValidCoordinates(extractedCoords)) {
-                        coordinates = extractedCoords;
-                        console.log('✓ Extracted coordinates from center parameter:', coordinates);
-                    } else {
-                        console.log('✗ Invalid coordinates from center parameter:', extractedCoords);
+                    const lat = parseFloat(centerMatch[1]);
+                    const lng = parseFloat(centerMatch[2]);
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log('✓ Extracted coordinates from HTML (center):', coordinates);
                     }
                 }
             }
 
-            // Method 4: Try JSON-LD or other embedded data
+            // Method 3: JSON-LD or embedded data
             if (!coordinates) {
-                const coordRegex = /"latitude"\s*:\s*(-?[\d.]+).*?"longitude"\s*:\s*(-?[\d.]+)/s;
-                const coordMatch2 = htmlContent.match(coordRegex);
-                if (coordMatch2) {
-                    extractedCoords = {
-                        lat: parseFloat(coordMatch2[1]),
-                        lng: parseFloat(coordMatch2[2])
-                    };
-                    if (isValidCoordinates(extractedCoords)) {
-                        coordinates = extractedCoords;
-                        console.log('✓ Extracted coordinates from JSON-LD:', coordinates);
-                    } else {
-                        console.log('✗ Invalid coordinates from JSON-LD:', extractedCoords);
-                    }
-                }
-            }
-
-            // Method 5: Try ll= parameter (lat/lng)
-            if (!coordinates) {
-                const llMatch = htmlContent.match(/ll=(-?[\d.]+)%2C(-?[\d.]+)/);
-                if (llMatch) {
-                    extractedCoords = {
-                        lat: parseFloat(llMatch[1]),
-                        lng: parseFloat(llMatch[2])
-                    };
-                    if (isValidCoordinates(extractedCoords)) {
-                        coordinates = extractedCoords;
-                        console.log('✓ Extracted coordinates from ll parameter:', coordinates);
-                    } else {
-                        console.log('✗ Invalid coordinates from ll parameter:', extractedCoords);
+                const coordPattern = /"latitude["\s:]+(-?[\d.]+)[\s,]+"longitude["\s:]+(-?[\d.]+)/i;
+                const coordMatch = htmlContent.match(coordPattern);
+                if (coordMatch) {
+                    const lat = parseFloat(coordMatch[1]);
+                    const lng = parseFloat(coordMatch[2]);
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log('✓ Extracted coordinates from HTML (JSON-LD):', coordinates);
                     }
                 }
             }
@@ -430,6 +387,18 @@ app.post('/api/place-from-url', async (req, res) => {
                     rating = filledStars;
                     reviewCount = parseInt(starRating[2].replace(/,/g, ''));
                     console.log('Found rating from stars (pattern 2):', rating, 'Reviews:', reviewCount);
+                }
+            }
+
+            // Pattern 3: Star symbols only "★★★★☆" without number
+            if (!ratingFromDesc && rating === 0) {
+                const starOnly = description.match(/([★☆]{3,})/);
+                if (starOnly) {
+                    const stars = starOnly[1];
+                    const filledStars = (stars.match(/★/g) || []).length;
+                    const totalStars = stars.length;
+                    rating = (filledStars / totalStars) * 5;
+                    console.log('Found rating from stars only (pattern 3):', rating);
                 }
             }
 
@@ -596,7 +565,7 @@ app.post('/api/place-from-url', async (req, res) => {
                         price_level: place.priceLevel,  // Still available as fallback
                         business_status: place.businessStatus,
                         types: place.types,
-                        formatted_address: place.formattedAddress,
+                        // formatted_address: place.formattedAddress,  // Removed - not displayed
                         formatted_phone_number: place.internationalPhoneNumber,
                         national_phone_number: place.nationalPhoneNumber,
                         website: place.websiteUri,
@@ -704,7 +673,7 @@ app.post('/api/place-from-url', async (req, res) => {
             }
             if (apiData.formatted_phone_number) phoneNumber = apiData.formatted_phone_number;
             if (apiData.website) website = apiData.website;
-            if (apiData.formatted_address && !address) address = apiData.formatted_address;
+            // if (apiData.formatted_address && !address) address = apiData.formatted_address;  // Removed - not displayed
             if (apiData.types && apiData.types.length > 0 && !category) {
                 // Use first type as category
                 category = apiData.types[0].replace(/_/g, ' ');
@@ -747,7 +716,7 @@ app.post('/api/place-from-url', async (req, res) => {
             phone_number: phoneNumber, // Phone number if available
             national_phone_number: apiData?.national_phone_number, // National format phone
             website: website, // Website URL if available
-            // formatted_address removed - not displayed in Google Maps UI
+            // formatted_address removed - not displayed in UI
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : [],
             // Action buttons (with fallbacks)

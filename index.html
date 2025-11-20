@@ -299,6 +299,34 @@
             font-weight: 400;
         }
 
+        .price-level {
+            font-size: 14px;
+            color: #5f6368;
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        .price-level::before {
+            content: '·';
+            margin-right: 4px;
+        }
+
+        .business-status {
+            font-size: 14px;
+            color: #5f6368;
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        .business-status.closed {
+            color: #d93025;
+        }
+
+        .business-status::before {
+            content: '·';
+            margin-right: 4px;
+        }
+
         .info-section {
             margin-bottom: 16px;
         }
@@ -481,6 +509,8 @@
                                 <span class="star empty">star</span>
                             </div>
                             <span class="review-count" id="reviewCount">(0)</span>
+                            <span class="price-level" id="priceLevel" style="display: none;"></span>
+                            <span class="business-status" id="businessStatus" style="display: none;"></span>
                         </div>
 
                         <div class="info-section">
@@ -647,6 +677,29 @@
             document.getElementById('ratingNumber').textContent = (place.rating || 0).toFixed(1);
             updateStars(place.rating || 0);
             document.getElementById('reviewCount').textContent = `(${(place.user_ratings_total || 0).toLocaleString()})`;
+
+            // Display price level if available (₩₩, $$, ¥1~1,000, etc.)
+            const priceLevelElement = document.getElementById('priceLevel');
+            if (place.price_level) {
+                priceLevelElement.textContent = place.price_level;
+                priceLevelElement.style.display = 'inline';
+            } else {
+                priceLevelElement.style.display = 'none';
+            }
+
+            // Display business status if available (폐업함, 영업 중, etc.)
+            const businessStatusElement = document.getElementById('businessStatus');
+            if (place.business_status) {
+                businessStatusElement.textContent = place.business_status;
+                businessStatusElement.className = 'business-status';
+                if (place.business_status.includes('폐업') || place.business_status.includes('closed')) {
+                    businessStatusElement.classList.add('closed');
+                }
+                businessStatusElement.style.display = 'inline';
+            } else {
+                businessStatusElement.style.display = 'none';
+            }
+
             document.getElementById('address').textContent = place.formatted_address || '주소 없음';
         }
 

@@ -133,12 +133,32 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        // Parse the description for rating and category
+        // Parse the description for rating, category, price, and business status
         let rating = 0;
         let category = '';
         let reviewCount = 0;
+        let priceLevel = null;
+        let businessStatus = null;
 
         if (description) {
+            console.log('Raw description:', description);
+
+            // Extract price level (₩₩, $$, ¥1~1,000, etc.)
+            const priceMatch = description.match(/(₩+|\$+|¥[\d,~]+|€+)/);
+            if (priceMatch) {
+                priceLevel = priceMatch[1];
+                console.log('Found price level:', priceLevel);
+            }
+
+            // Extract business status (폐업함, 영업 중, etc.)
+            if (description.includes('폐업함') || description.includes('Permanently closed')) {
+                businessStatus = '폐업함';
+            } else if (description.includes('임시 휴업') || description.includes('Temporarily closed')) {
+                businessStatus = '임시 휴업';
+            } else if (description.includes('영업 중') || description.includes('Open')) {
+                businessStatus = '영업 중';
+            }
+
             // Count filled stars for rating (★ = filled, ☆ = empty)
             const filledStars = (description.match(/★/g) || []).length;
             const emptyStars = (description.match(/☆/g) || []).length;
@@ -149,16 +169,26 @@ app.post('/api/place-from-url', async (req, res) => {
                 rating = filledStars;
             }
 
-            // Extract category (text after the stars)
-            const categoryMatch = description.match(/[★☆]+\s*·\s*(.+)/);
-            if (categoryMatch) {
-                category = categoryMatch[1];
+            // Extract category (text after the stars and price)
+            // Remove stars, price, and business status to get category
+            let cleanDesc = description.replace(/[★☆]+/g, '').replace(/·/g, '').trim();
+            if (priceLevel) {
+                cleanDesc = cleanDesc.replace(priceLevel, '').trim();
+            }
+            if (businessStatus) {
+                cleanDesc = cleanDesc.replace(businessStatus, '').trim();
+            }
+
+            // Category is usually the last part
+            const parts = cleanDesc.split(/\s+/);
+            if (parts.length > 0) {
+                category = parts[parts.length - 1];
             }
         }
 
         // Try to extract actual rating and review count from page data
         // Google Maps embeds this data in JavaScript variables
-        const htmlContent = localResponse.data;
+        const htmlContent = koreanResponse.data;
 
         // Look for rating pattern like: ["4.1",123]
         const ratingPattern = /\["([\d.]+)",(\d+)\]/g;
@@ -190,6 +220,8 @@ app.post('/api/place-from-url', async (req, res) => {
             name_local: secondaryName, // Local language name (shown below if different)
             rating: rating,
             user_ratings_total: reviewCount,
+            price_level: priceLevel, // Price range (₩₩, $$, ¥1~1,000, etc.)
+            business_status: businessStatus, // 폐업함, 영업 중, etc.
             formatted_address: address,
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : []

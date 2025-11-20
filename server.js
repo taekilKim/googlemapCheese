@@ -178,8 +178,8 @@ app.post('/api/place-from-url', async (req, res) => {
         if (description) {
             console.log('Raw description:', description);
 
-            // Extract price level (₩₩, $$, ¥1~1,000, etc.)
-            const priceMatch = description.match(/(₩+|\$+|¥[\d,~]+|€+)/);
+            // Extract price level (₩₩, $$, ¥1~1,000, etc.) - improved pattern
+            const priceMatch = description.match(/(₩{1,4}|\${1,4}|¥[\d,~]+|€{1,4}|£{1,4})/);
             if (priceMatch) {
                 priceLevel = priceMatch[1];
                 console.log('Found price level:', priceLevel);
@@ -194,60 +194,78 @@ app.post('/api/place-from-url', async (req, res) => {
                 businessStatus = '영업 중';
             }
 
-            // Count filled stars for rating (★ = filled, ☆ = empty)
-            const filledStars = (description.match(/★/g) || []).length;
-            const emptyStars = (description.match(/☆/g) || []).length;
-            const totalStars = filledStars + emptyStars;
-
-            // Calculate rating as decimal (e.g., 4 filled out of 5 total = 4.0)
-            if (totalStars > 0) {
-                rating = filledStars;
+            // Extract rating from description (e.g., "4.5(433)" or "3.7 (649)")
+            const ratingFromDesc = description.match(/([\d.]+)\s*\(([,\d]+)\)/);
+            if (ratingFromDesc) {
+                rating = parseFloat(ratingFromDesc[1]);
+                reviewCount = parseInt(ratingFromDesc[2].replace(/,/g, ''));
+                console.log('Found rating from description:', rating, 'Reviews:', reviewCount);
             }
 
-            // Extract category (text after the stars and price)
-            // Remove stars, price, and business status to get category
-            let cleanDesc = description.replace(/[★☆]+/g, '').replace(/·/g, '').trim();
-            if (priceLevel) {
-                cleanDesc = cleanDesc.replace(priceLevel, '').trim();
-            }
-            if (businessStatus) {
-                cleanDesc = cleanDesc.replace(businessStatus, '').trim();
+            // Extract category - try different patterns
+            // Pattern 1: After stars/rating
+            const categoryMatch1 = description.match(/[★☆\d.()]+\s*·\s*(.+?)(?:·|$)/);
+            if (categoryMatch1) {
+                category = categoryMatch1[1].trim();
             }
 
-            // Category is usually the last part
-            const parts = cleanDesc.split(/\s+/);
-            if (parts.length > 0) {
-                category = parts[parts.length - 1];
+            // Pattern 2: Last item after splitting by ·
+            if (!category) {
+                const parts = description.split('·');
+                if (parts.length > 1) {
+                    category = parts[parts.length - 1].trim();
+                }
             }
+
+            console.log('Category from description:', category);
         }
 
-        // Try to extract actual rating and review count from page data
-        // Google Maps embeds this data in JavaScript variables
+        // Try to extract actual rating and review count from page data if not found in description
+        // Google Maps embeds this data in JavaScript variables in various formats
         const htmlContent = koreanResponse.data;
 
-        // Look for rating pattern like: ["4.1",123]
-        const ratingPattern = /\["([\d.]+)",(\d+)\]/g;
-        let matches;
-        let foundRating = null;
-        let foundReviews = null;
+        if (rating === 0 || reviewCount === 0) {
+            // Pattern 1: ["4.1",123] or ["3.7",649]
+            const pattern1 = /\["([\d.]+)",(\d+)\]/g;
+            let matches1;
+            while ((matches1 = pattern1.exec(htmlContent)) !== null) {
+                const possibleRating = parseFloat(matches1[1]);
+                const possibleReviews = parseInt(matches1[2]);
 
-        while ((matches = ratingPattern.exec(htmlContent)) !== null) {
-            const possibleRating = parseFloat(matches[1]);
-            const possibleReviews = parseInt(matches[2]);
-
-            // Validate that it looks like a real rating (between 1-5) and review count
-            if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0) {
-                foundRating = possibleRating;
-                foundReviews = possibleReviews;
-                break;
+                if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0) {
+                    rating = possibleRating;
+                    reviewCount = possibleReviews;
+                    console.log('Found rating from pattern 1:', rating, 'Reviews:', reviewCount);
+                    break;
+                }
             }
         }
 
-        if (foundRating !== null) {
-            rating = foundRating;
-            reviewCount = foundReviews;
-            console.log('Found rating from page data:', rating, 'Reviews:', reviewCount);
+        if (rating === 0 || reviewCount === 0) {
+            // Pattern 2: "4.1 stars" or similar with review count nearby
+            const pattern2 = /([\d.]+)\s*(?:stars?|별)/i;
+            const ratingMatch2 = htmlContent.match(pattern2);
+            if (ratingMatch2) {
+                const possibleRating = parseFloat(ratingMatch2[1]);
+                if (possibleRating >= 1 && possibleRating <= 5) {
+                    rating = possibleRating;
+                    console.log('Found rating from pattern 2:', rating);
+                }
+            }
+
+            // Look for review count near rating
+            const pattern3 = /([\d,]+)\s*(?:reviews?|리뷰|건)/i;
+            const reviewMatch3 = htmlContent.match(pattern3);
+            if (reviewMatch3) {
+                const possibleReviews = parseInt(reviewMatch3[1].replace(/,/g, ''));
+                if (possibleReviews > 0) {
+                    reviewCount = possibleReviews;
+                    console.log('Found reviews from pattern 3:', reviewCount);
+                }
+            }
         }
+
+        console.log('Final rating:', rating, 'Final reviews:', reviewCount);
 
         // Build response matching Korean Google Maps display format
         const placeData = {

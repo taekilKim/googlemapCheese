@@ -9,12 +9,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
+        /* Google Sans font for Android users */
+        @font-face {
+            font-family: 'Google Sans';
+            src: url('fonts/google sans.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        /* Default font-family (will be overridden by JavaScript based on platform) */
         body {
             font-family: Roboto, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -23,6 +33,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
+        }
+
+        /* iOS font stack */
+        body.ios {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+        }
+
+        /* Android font stack */
+        body.android {
+            font-family: 'Google Sans', Roboto, 'Noto Sans KR', sans-serif;
         }
 
         .container {
@@ -218,6 +238,14 @@
             line-height: 28px;
             margin-bottom: 4px;
             letter-spacing: 0;
+        }
+
+        .place-name-secondary {
+            font-size: 16px;
+            font-weight: 400;
+            color: #5f6368;
+            line-height: 20px;
+            margin-top: 2px;
         }
 
         .category {
@@ -437,7 +465,10 @@
                         </div>
                     </div>
                     <div class="maps-card">
-                        <div class="place-name" id="placeName">장소 이름</div>
+                        <div>
+                            <div class="place-name" id="placeName">장소 이름</div>
+                            <div class="place-name-secondary" id="placeNameSecondary" style="display: none;"></div>
+                        </div>
                         <div class="category" id="category">카테고리</div>
 
                         <div class="rating-section">
@@ -485,6 +516,26 @@
 
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script>
+        // Detect platform and apply appropriate font
+        (function() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+            // iOS detection
+            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+                document.body.classList.add('ios');
+                console.log('Platform: iOS - Using Apple system fonts');
+            }
+            // Android detection
+            else if (/android/i.test(userAgent)) {
+                document.body.classList.add('android');
+                console.log('Platform: Android - Using Google Sans font');
+            }
+            // Default (desktop or other)
+            else {
+                console.log('Platform: Desktop/Other - Using default fonts');
+            }
+        })();
+
         const API_BASE_URL = window.location.origin;
 
         // File upload handling
@@ -578,9 +629,20 @@
             }
         }
 
-        // Update preview with place data
+        // Update preview with place data (matching Korean Google Maps display)
         function updatePreview(place) {
+            // Display primary name (Korean/English - what Korean users see on Google Maps)
             document.getElementById('placeName').textContent = place.name || '장소 이름';
+
+            // Display secondary name (local language - shown below if different from primary)
+            const secondaryNameElement = document.getElementById('placeNameSecondary');
+            if (place.name_local && place.name_local !== place.name) {
+                secondaryNameElement.textContent = place.name_local;
+                secondaryNameElement.style.display = 'block';
+            } else {
+                secondaryNameElement.style.display = 'none';
+            }
+
             document.getElementById('category').textContent = getCategoryName(place.types);
             document.getElementById('ratingNumber').textContent = (place.rating || 0).toFixed(1);
             updateStars(place.rating || 0);

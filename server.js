@@ -412,7 +412,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.directionsUri,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours'
+                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.googleMapsLinks,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours'
                     },
                     timeout: 10000
                 });
@@ -427,6 +427,11 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('  Price Range:', place.priceRange);
                     console.log('  Price Level:', place.priceLevel);
                     console.log('  Business Status:', place.businessStatus);
+                    console.log('  Google Maps URI:', place.googleMapsUri);
+                    console.log('  Google Maps Links:', place.googleMapsLinks);
+                    console.log('  Delivery:', place.delivery);
+                    console.log('  Takeout:', place.takeout);
+                    console.log('  Phone:', place.internationalPhoneNumber);
 
                     // Map new API format to old format for compatibility
                     apiData = {
@@ -442,14 +447,16 @@ app.post('/api/place-from-url', async (req, res) => {
                         national_phone_number: place.nationalPhoneNumber,
                         website: place.websiteUri,
                         // Action buttons data
-                        google_maps_uri: place.googleMapsUri,
-                        directions_uri: place.directionsUri,
+                        google_maps_uri: place.googleMapsUri || place.googleMapsLinks?.placeUri,
+                        directions_uri: place.googleMapsLinks?.directionsUri,
                         reservable: place.reservable,
                         delivery: place.delivery,
                         takeout: place.takeout,
                         dine_in: place.dineIn,
                         opening_hours: place.currentOpeningHours
                     };
+
+                    console.log('Mapped apiData:', JSON.stringify(apiData, null, 2));
                 } else {
                     console.log('Text Search returned no results');
                 }
@@ -552,6 +559,19 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Final rating:', rating, 'Final reviews:', reviewCount);
 
+        // Fallback for missing API data
+        // If API failed, use original URL as google_maps_uri
+        const googleMapsUri = apiData?.google_maps_uri || finalUrl;
+        const directionsUri = apiData?.directions_uri || (finalUrl ? finalUrl + '/directions' : null);
+
+        // Infer delivery/takeout from category if API didn't provide it
+        const isRestaurant = category && (
+            category.includes('레스토랑') || category.includes('음식점') || category.includes('restaurant') ||
+            category.includes('cafe') || category.includes('카페') || category.includes('food')
+        );
+        const delivery = apiData?.delivery !== undefined ? apiData.delivery : (isRestaurant ? true : undefined);
+        const takeout = apiData?.takeout !== undefined ? apiData.takeout : (isRestaurant ? true : undefined);
+
         // Build response matching Korean Google Maps display format
         const placeData = {
             name: primaryName, // Korean/English name (what Korean users see first)
@@ -566,12 +586,12 @@ app.post('/api/place-from-url', async (req, res) => {
             formatted_address: address,
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : [],
-            // Action buttons
-            google_maps_uri: apiData?.google_maps_uri,
-            directions_uri: apiData?.directions_uri,
+            // Action buttons (with fallbacks)
+            google_maps_uri: googleMapsUri,
+            directions_uri: directionsUri,
             reservable: apiData?.reservable,
-            delivery: apiData?.delivery,
-            takeout: apiData?.takeout,
+            delivery: delivery,
+            takeout: takeout,
             dine_in: apiData?.dine_in,
             opening_hours: apiData?.opening_hours
         };

@@ -52,6 +52,32 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
+        // If URL is a query format with ftid, convert it to a /place/ URL for better HTML structure
+        const ftidCheckMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
+        if (ftidCheckMatch && finalUrl.includes('?q=') && !finalUrl.includes('/place/')) {
+            const ftid = ftidCheckMatch[1];
+            console.log('Detected ftid query URL, converting to /place/ URL for better data extraction...');
+
+            // Create a /place/ URL using ftid that will redirect to the proper place page
+            const ftidPlaceUrl = `https://www.google.com/maps/place/?ftid=${ftid}`;
+            console.log('Trying ftid place URL:', ftidPlaceUrl);
+
+            try {
+                const { execSync } = require('child_process');
+                const curlCommand = `curl -Ls -o /dev/null -w %{url_effective} "${ftidPlaceUrl}"`;
+                const redirectedUrl = execSync(curlCommand, { encoding: 'utf8', timeout: 10000 }).trim();
+
+                if (redirectedUrl && redirectedUrl.startsWith('http') && redirectedUrl.includes('/place/')) {
+                    finalUrl = redirectedUrl;
+                    console.log('✓ Converted to /place/ URL:', finalUrl);
+                } else {
+                    console.log('⚠ ftid conversion did not produce /place/ URL, using original');
+                }
+            } catch (error) {
+                console.log('⚠ Error converting ftid URL:', error.message);
+            }
+        }
+
         // Extract coordinates from URL for Places API
         let coordinates = null;
         let placeId = null;  // Will be used for ftid-based URLs
@@ -478,6 +504,9 @@ app.post('/api/place-from-url', async (req, res) => {
         let apiData = null;
         if (process.env.GOOGLE_MAPS_API_KEY && coordinates && primaryName) {
             console.log('Attempting Places API (New) v1 with Text Search...');
+            console.log('Coordinates before API call:', coordinates);
+            console.log('Primary name:', primaryName);
+            console.log('Language:', detectedLang);
             try {
                 const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -499,6 +528,8 @@ app.post('/api/place-from-url', async (req, res) => {
                     languageCode: detectedLang,
                     maxResultCount: 1
                 };
+
+                console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
                 const searchResponse = await axios.post(searchUrl, requestBody, {
                     headers: {
@@ -569,8 +600,8 @@ app.post('/api/place-from-url', async (req, res) => {
         // Use Places API data if available (most accurate)
         if (apiData) {
             console.log('Using Places API data as primary source');
-            if (apiData.rating) rating = apiData.rating;
-            if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
+            if (apiData.rating !== undefined && apiData.rating !== null) rating = apiData.rating;
+            if (apiData.user_ratings_total !== undefined && apiData.user_ratings_total !== null) reviewCount = apiData.user_ratings_total;
 
             // Handle price information with priority order:
             // 1. API priceRange (actual amounts like ₩10,000~₩20,000)

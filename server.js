@@ -52,6 +52,32 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
+        // If URL is a query format with ftid, convert it to a /place/ URL for better HTML structure
+        const ftidCheckMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
+        if (ftidCheckMatch && finalUrl.includes('?q=') && !finalUrl.includes('/place/')) {
+            const ftid = ftidCheckMatch[1];
+            console.log('Detected ftid query URL, converting to /place/ URL for better data extraction...');
+
+            // Create a /place/ URL using ftid that will redirect to the proper place page
+            const ftidPlaceUrl = `https://www.google.com/maps/place/?ftid=${ftid}`;
+            console.log('Trying ftid place URL:', ftidPlaceUrl);
+
+            try {
+                const { execSync } = require('child_process');
+                const curlCommand = `curl -Ls -o /dev/null -w %{url_effective} "${ftidPlaceUrl}"`;
+                const redirectedUrl = execSync(curlCommand, { encoding: 'utf8', timeout: 10000 }).trim();
+
+                if (redirectedUrl && redirectedUrl.startsWith('http') && redirectedUrl.includes('/place/')) {
+                    finalUrl = redirectedUrl;
+                    console.log('✓ Converted to /place/ URL:', finalUrl);
+                } else {
+                    console.log('⚠ ftid conversion did not produce /place/ URL, using original');
+                }
+            } catch (error) {
+                console.log('⚠ Error converting ftid URL:', error.message);
+            }
+        }
+
         // Extract coordinates from URL for Places API
         let coordinates = null;
         let placeId = null;

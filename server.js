@@ -412,7 +412,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.directionsUri,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours'
+                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.googleMapsLinks,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours'
                     },
                     timeout: 10000
                 });
@@ -428,7 +428,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('  Price Level:', place.priceLevel);
                     console.log('  Business Status:', place.businessStatus);
                     console.log('  Google Maps URI:', place.googleMapsUri);
-                    console.log('  Directions URI:', place.directionsUri);
+                    console.log('  Google Maps Links:', place.googleMapsLinks);
                     console.log('  Delivery:', place.delivery);
                     console.log('  Takeout:', place.takeout);
                     console.log('  Phone:', place.internationalPhoneNumber);
@@ -447,8 +447,8 @@ app.post('/api/place-from-url', async (req, res) => {
                         national_phone_number: place.nationalPhoneNumber,
                         website: place.websiteUri,
                         // Action buttons data
-                        google_maps_uri: place.googleMapsUri,
-                        directions_uri: place.directionsUri,
+                        google_maps_uri: place.googleMapsUri || place.googleMapsLinks?.placeUri,
+                        directions_uri: place.googleMapsLinks?.directionsUri,
                         reservable: place.reservable,
                         delivery: place.delivery,
                         takeout: place.takeout,

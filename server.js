@@ -52,6 +52,32 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
+        // If URL is a query format with ftid, convert it to a /place/ URL for better HTML structure
+        const ftidCheckMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
+        if (ftidCheckMatch && finalUrl.includes('?q=') && !finalUrl.includes('/place/')) {
+            const ftid = ftidCheckMatch[1];
+            console.log('Detected ftid query URL, converting to /place/ URL for better data extraction...');
+
+            // Create a /place/ URL using ftid that will redirect to the proper place page
+            const ftidPlaceUrl = `https://www.google.com/maps/place/?ftid=${ftid}`;
+            console.log('Trying ftid place URL:', ftidPlaceUrl);
+
+            try {
+                const { execSync } = require('child_process');
+                const curlCommand = `curl -Ls -o /dev/null -w %{url_effective} "${ftidPlaceUrl}"`;
+                const redirectedUrl = execSync(curlCommand, { encoding: 'utf8', timeout: 10000 }).trim();
+
+                if (redirectedUrl && redirectedUrl.startsWith('http') && redirectedUrl.includes('/place/')) {
+                    finalUrl = redirectedUrl;
+                    console.log('✓ Converted to /place/ URL:', finalUrl);
+                } else {
+                    console.log('⚠ ftid conversion did not produce /place/ URL, using original');
+                }
+            } catch (error) {
+                console.log('⚠ Error converting ftid URL:', error.message);
+            }
+        }
+
         // Extract coordinates from URL for Places API
         let coordinates = null;
         let placeId = null;
@@ -233,66 +259,112 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Phone:', phoneNumber);
         console.log('Website:', website);
 
+        // Helper function to validate coordinates
+        const isValidCoordinates = (coords) => {
+            if (!coords || typeof coords.lat !== 'number' || typeof coords.lng !== 'number') {
+                return false;
+            }
+            const lat = coords.lat;
+            const lng = coords.lng;
+            return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+        };
+
         // If we don't have coordinates from URL but have ftid, try to extract from HTML
         if (!coordinates && placeId) {
             console.log('Attempting to extract coordinates from HTML response...');
 
             // Look for coordinates in the HTML content (often in meta tags or embedded JSON)
             const htmlContent = koreanResponse.data;
+            let extractedCoords = null;
 
             // Method 1: Try !3d and !4d patterns (most common in Google Maps URLs)
             const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
             const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
 
             if (html3dMatch && html4dMatch) {
-                coordinates = {
+                extractedCoords = {
                     lat: parseFloat(html3dMatch[1]),
                     lng: parseFloat(html4dMatch[1])
                 };
-                console.log('✓ Extracted coordinates from !3d/!4d:', coordinates);
-            } else {
-                // Method 2: Try @lat,lng pattern
+                if (isValidCoordinates(extractedCoords)) {
+                    coordinates = extractedCoords;
+                    console.log('✓ Extracted coordinates from !3d/!4d:', coordinates);
+                } else {
+                    console.log('✗ Invalid coordinates from !3d/!4d:', extractedCoords);
+                }
+            }
+
+            // Method 2: Try @lat,lng pattern (only if previous method failed)
+            if (!coordinates) {
                 const atMatch = htmlContent.match(/@(-?[\d.]+),(-?[\d.]+)/);
                 if (atMatch) {
-                    coordinates = {
+                    extractedCoords = {
                         lat: parseFloat(atMatch[1]),
                         lng: parseFloat(atMatch[2])
                     };
-                    console.log('✓ Extracted coordinates from @ pattern:', coordinates);
-                } else {
-                    // Method 3: Try center= parameter
-                    const centerMatch = htmlContent.match(/center=(-?[\d.]+)%2C(-?[\d.]+)/);
-                    if (centerMatch) {
-                        coordinates = {
-                            lat: parseFloat(centerMatch[1]),
-                            lng: parseFloat(centerMatch[2])
-                        };
-                        console.log('✓ Extracted coordinates from center parameter:', coordinates);
+                    if (isValidCoordinates(extractedCoords)) {
+                        coordinates = extractedCoords;
+                        console.log('✓ Extracted coordinates from @ pattern:', coordinates);
                     } else {
-                        // Method 4: Try JSON-LD or other embedded data
-                        const coordRegex = /"latitude"\s*:\s*(-?[\d.]+).*?"longitude"\s*:\s*(-?[\d.]+)/s;
-                        const coordMatch2 = htmlContent.match(coordRegex);
-                        if (coordMatch2) {
-                            coordinates = {
-                                lat: parseFloat(coordMatch2[1]),
-                                lng: parseFloat(coordMatch2[2])
-                            };
-                            console.log('✓ Extracted coordinates from JSON-LD:', coordinates);
-                        } else {
-                            // Method 5: Try ll= parameter (lat/lng)
-                            const llMatch = htmlContent.match(/ll=(-?[\d.]+)%2C(-?[\d.]+)/);
-                            if (llMatch) {
-                                coordinates = {
-                                    lat: parseFloat(llMatch[1]),
-                                    lng: parseFloat(llMatch[2])
-                                };
-                                console.log('✓ Extracted coordinates from ll parameter:', coordinates);
-                            } else {
-                                console.log('⚠ Could not extract coordinates from HTML');
-                            }
-                        }
+                        console.log('✗ Invalid coordinates from @ pattern:', extractedCoords);
                     }
                 }
+            }
+
+            // Method 3: Try center= parameter
+            if (!coordinates) {
+                const centerMatch = htmlContent.match(/center=(-?[\d.]+)%2C(-?[\d.]+)/);
+                if (centerMatch) {
+                    extractedCoords = {
+                        lat: parseFloat(centerMatch[1]),
+                        lng: parseFloat(centerMatch[2])
+                    };
+                    if (isValidCoordinates(extractedCoords)) {
+                        coordinates = extractedCoords;
+                        console.log('✓ Extracted coordinates from center parameter:', coordinates);
+                    } else {
+                        console.log('✗ Invalid coordinates from center parameter:', extractedCoords);
+                    }
+                }
+            }
+
+            // Method 4: Try JSON-LD or other embedded data
+            if (!coordinates) {
+                const coordRegex = /"latitude"\s*:\s*(-?[\d.]+).*?"longitude"\s*:\s*(-?[\d.]+)/s;
+                const coordMatch2 = htmlContent.match(coordRegex);
+                if (coordMatch2) {
+                    extractedCoords = {
+                        lat: parseFloat(coordMatch2[1]),
+                        lng: parseFloat(coordMatch2[2])
+                    };
+                    if (isValidCoordinates(extractedCoords)) {
+                        coordinates = extractedCoords;
+                        console.log('✓ Extracted coordinates from JSON-LD:', coordinates);
+                    } else {
+                        console.log('✗ Invalid coordinates from JSON-LD:', extractedCoords);
+                    }
+                }
+            }
+
+            // Method 5: Try ll= parameter (lat/lng)
+            if (!coordinates) {
+                const llMatch = htmlContent.match(/ll=(-?[\d.]+)%2C(-?[\d.]+)/);
+                if (llMatch) {
+                    extractedCoords = {
+                        lat: parseFloat(llMatch[1]),
+                        lng: parseFloat(llMatch[2])
+                    };
+                    if (isValidCoordinates(extractedCoords)) {
+                        coordinates = extractedCoords;
+                        console.log('✓ Extracted coordinates from ll parameter:', coordinates);
+                    } else {
+                        console.log('✗ Invalid coordinates from ll parameter:', extractedCoords);
+                    }
+                }
+            }
+
+            if (!coordinates) {
+                console.log('⚠ Could not extract valid coordinates from HTML');
             }
         }
 
@@ -463,6 +535,9 @@ app.post('/api/place-from-url', async (req, res) => {
         let apiData = null;
         if (process.env.GOOGLE_MAPS_API_KEY && coordinates && primaryName) {
             console.log('Attempting Places API (New) v1 with Text Search...');
+            console.log('Coordinates before API call:', coordinates);
+            console.log('Primary name:', primaryName);
+            console.log('Language:', detectedLang);
             try {
                 const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -484,6 +559,8 @@ app.post('/api/place-from-url', async (req, res) => {
                     languageCode: detectedLang,
                     maxResultCount: 1
                 };
+
+                console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
                 const searchResponse = await axios.post(searchUrl, requestBody, {
                     headers: {
@@ -554,8 +631,8 @@ app.post('/api/place-from-url', async (req, res) => {
         // Use Places API data if available (most accurate)
         if (apiData) {
             console.log('Using Places API data as primary source');
-            if (apiData.rating) rating = apiData.rating;
-            if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
+            if (apiData.rating !== undefined && apiData.rating !== null) rating = apiData.rating;
+            if (apiData.user_ratings_total !== undefined && apiData.user_ratings_total !== null) reviewCount = apiData.user_ratings_total;
 
             // Handle price information with priority order:
             // 1. API priceRange (actual amounts like ₩10,000~₩20,000)

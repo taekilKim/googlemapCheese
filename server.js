@@ -427,6 +427,11 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('  Price Range:', place.priceRange);
                     console.log('  Price Level:', place.priceLevel);
                     console.log('  Business Status:', place.businessStatus);
+                    console.log('  Google Maps URI:', place.googleMapsUri);
+                    console.log('  Directions URI:', place.directionsUri);
+                    console.log('  Delivery:', place.delivery);
+                    console.log('  Takeout:', place.takeout);
+                    console.log('  Phone:', place.internationalPhoneNumber);
 
                     // Map new API format to old format for compatibility
                     apiData = {
@@ -450,6 +455,8 @@ app.post('/api/place-from-url', async (req, res) => {
                         dine_in: place.dineIn,
                         opening_hours: place.currentOpeningHours
                     };
+
+                    console.log('Mapped apiData:', JSON.stringify(apiData, null, 2));
                 } else {
                     console.log('Text Search returned no results');
                 }

@@ -268,15 +268,23 @@
             font-weight: 400;
             color: #202124;
             line-height: 24px;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             letter-spacing: -0.2px;
+        }
+
+        .maps-place-name-secondary {
+            font-size: 14px;
+            font-weight: 400;
+            color: #70757a;
+            line-height: 20px;
+            margin-bottom: 8px;
         }
 
         .maps-rating-row {
             display: flex;
             align-items: center;
             gap: 6px;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .maps-rating-number {
@@ -309,13 +317,10 @@
         }
 
         .maps-info-row {
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
-            padding: 8px 0;
             font-size: 14px;
             color: #5f6368;
             line-height: 20px;
+            margin-bottom: 4px;
         }
 
         .maps-info-icon {
@@ -325,12 +330,13 @@
         }
 
         .maps-info-text {
-            flex: 1;
+            color: #5f6368;
         }
 
         .maps-buttons-row {
             display: flex;
             gap: 12px;
+            margin-top: 16px;
             padding-top: 8px;
             overflow-x: auto;
             scrollbar-width: none;
@@ -750,11 +756,20 @@
                                             </div>
                                             <div className="maps-overlay">
                                                 <div className="maps-drag-handle"></div>
-                                                
+
+                                                {/* 1. 장소 이름 */}
                                                 <div className="maps-place-name">
                                                     {placeData.name}
                                                 </div>
 
+                                                {/* 2. 장소 세컨드이름 */}
+                                                {placeData.name_local && placeData.name_local !== placeData.name && (
+                                                    <div className="maps-place-name-secondary">
+                                                        {placeData.name_local}
+                                                    </div>
+                                                )}
+
+                                                {/* 3. 별점 별갯수(리뷰 수) */}
                                                 {placeData.rating && (
                                                     <div className="maps-rating-row">
                                                         <span className="maps-rating-number">{placeData.rating}</span>
@@ -767,32 +782,27 @@
                                                     </div>
                                                 )}
 
-                                                <div className="maps-info-section">
-                                                    {placeData.types && (
-                                                        <div className="maps-info-row">
-                                                            <span className="maps-info-icon">🏷️</span>
-                                                            <span className="maps-info-text">{getCategoryText(placeData.types)}</span>
-                                                        </div>
-                                                    )}
-                                                    {placeData.price_level && (
-                                                        <div className="maps-info-row">
-                                                            <span className="maps-info-icon">💰</span>
-                                                            <span className="maps-info-text">{getPriceLevel(placeData.price_level)}</span>
-                                                        </div>
-                                                    )}
-                                                    {placeData.opening_hours && (
-                                                        <div className="maps-info-row">
-                                                            <span className="maps-info-icon">🕐</span>
-                                                            <span className="maps-info-text">{getOpeningHours(placeData.opening_hours)}</span>
-                                                        </div>
-                                                    )}
-                                                    {placeData.formatted_address && (
-                                                        <div className="maps-info-row">
-                                                            <span className="maps-info-icon">📍</span>
-                                                            <span className="maps-info-text">{placeData.formatted_address}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                {/* 4. 카테고리 · 가격대 */}
+                                                {(placeData.types || placeData.price_level) && (
+                                                    <div className="maps-info-row">
+                                                        <span className="maps-info-text">
+                                                            {placeData.types && getCategoryText(placeData.types)}
+                                                            {placeData.types && placeData.price_level && ' · '}
+                                                            {placeData.price_level && getPriceLevel(placeData.price_level)}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* 5. 영업 여부 · 영업 종료 시간 */}
+                                                {(placeData.business_status || placeData.opening_hours) && (
+                                                    <div className="maps-info-row">
+                                                        <span className="maps-info-text">
+                                                            {placeData.business_status}
+                                                            {placeData.business_status && placeData.opening_hours && ' · '}
+                                                            {placeData.opening_hours && getOpeningHours(placeData.opening_hours)}
+                                                        </span>
+                                                    </div>
+                                                )}
 
                                                 <div className="maps-buttons-row">
                                                     {/* Google Maps standard buttons: 경로, 주문, 통화, 저장 */}

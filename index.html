@@ -61,12 +61,14 @@
                         </div>
                     </div>
                     <div class="maps-card">
+                        <!-- 1. 장소 이름 -->
                         <div>
                             <div class="place-name" id="placeName">장소 이름</div>
+                            <!-- 2. 장소 세컨드이름 -->
                             <div class="place-name-secondary" id="placeNameSecondary" style="display: none;"></div>
                         </div>
-                        <div class="category" id="category">카테고리</div>
 
+                        <!-- 3. 별점 별갯수(리뷰 수) -->
                         <div class="rating-section">
                             <span class="rating-number" id="ratingNumber">0.0</span>
                             <div class="stars" id="starsContainer">
@@ -77,17 +79,21 @@
                                 <img class="star" src="/images/ic_star_rate_empty_14.png" alt="빈별">
                             </div>
                             <span class="review-count" id="reviewCount">(0)</span>
+                        </div>
+
+                        <!-- 4. 카테고리 · 가격대 -->
+                        <div class="category-price-section">
+                            <span class="category" id="category">카테고리</span>
                             <span class="price-level" id="priceLevel" style="display: none;"></span>
+                        </div>
+
+                        <!-- 5. 영업 여부 · 영업 종료 시간 -->
+                        <div class="business-hours-section">
                             <span class="business-status" id="businessStatus" style="display: none;"></span>
+                            <span class="closing-time" id="closingTime" style="display: none;"></span>
                         </div>
 
-                        <div class="info-section">
-                            <div class="info-row">
-                                <span class="info-icon">place</span>
-                                <div class="info-text address" id="address">주소를 불러오는 중...</div>
-                            </div>
-                        </div>
-
+                        <!-- 6. 버튼 -->
                         <div class="action-buttons">
                             <button class="action-btn">
                                 <span class="action-icon">directions</span>
@@ -241,22 +247,29 @@
                 secondaryNameElement.style.display = 'none';
             }
 
-            document.getElementById('category').textContent = getCategoryName(place.types);
+            // 3. 별점 별갯수(리뷰 수)
             document.getElementById('ratingNumber').textContent = (place.rating || 0).toFixed(1);
             updateStars(place.rating || 0);
             document.getElementById('reviewCount').textContent = `(${(place.user_ratings_total || 0).toLocaleString()})`;
 
-            // Display price level if available (₩₩, $$, ¥1~1,000, etc.)
+            // 4. 카테고리 · 가격대
+            const categoryElement = document.getElementById('category');
             const priceLevelElement = document.getElementById('priceLevel');
+            const categoryText = getCategoryName(place.types);
+
+            categoryElement.textContent = categoryText;
+
             if (place.price_level) {
-                priceLevelElement.textContent = place.price_level;
+                priceLevelElement.textContent = ' · ' + place.price_level;
                 priceLevelElement.style.display = 'inline';
             } else {
                 priceLevelElement.style.display = 'none';
             }
 
-            // Display business status if available (폐업함, 영업 중, etc.)
+            // 5. 영업 여부 · 영업 종료 시간
             const businessStatusElement = document.getElementById('businessStatus');
+            const closingTimeElement = document.getElementById('closingTime');
+
             if (place.business_status) {
                 businessStatusElement.textContent = place.business_status;
                 businessStatusElement.className = 'business-status';
@@ -268,9 +281,25 @@
                 businessStatusElement.style.display = 'none';
             }
 
-            document.getElementById('address').textContent = place.formatted_address || '주소 없음';
+            // Extract closing time from opening_hours if available
+            if (place.opening_hours && place.opening_hours.weekday_text) {
+                const today = new Date().getDay();
+                const dayIndex = today === 0 ? 6 : today - 1; // Convert to Monday=0 format
+                const todayHours = place.opening_hours.weekday_text[dayIndex];
 
-            // Update action buttons with actual links
+                if (todayHours) {
+                    // Extract closing time (e.g., "오후 9:00" from "월요일: 오전 11:00~오후 9:00")
+                    const timeMatch = todayHours.match(/~([^~]+)$/);
+                    if (timeMatch) {
+                        closingTimeElement.textContent = ' · ' + timeMatch[1].trim() + ' 영업 종료';
+                        closingTimeElement.style.display = 'inline';
+                    }
+                }
+            } else {
+                closingTimeElement.style.display = 'none';
+            }
+
+            // 6. 버튼 - Update action buttons with actual links
             updateActionButtons(place);
         }
 

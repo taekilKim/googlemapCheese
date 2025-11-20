@@ -240,7 +240,7 @@ app.post('/api/place-from-url', async (req, res) => {
             // Look for coordinates in the HTML content (often in meta tags or embedded JSON)
             const htmlContent = koreanResponse.data;
 
-            // Try to find coordinates in various formats
+            // Method 1: Try !3d and !4d patterns (most common in Google Maps URLs)
             const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
             const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
 
@@ -249,17 +249,49 @@ app.post('/api/place-from-url', async (req, res) => {
                     lat: parseFloat(html3dMatch[1]),
                     lng: parseFloat(html4dMatch[1])
                 };
-                console.log('✓ Extracted coordinates from HTML:', coordinates);
+                console.log('✓ Extracted coordinates from !3d/!4d:', coordinates);
             } else {
-                // Try JSON-LD or other embedded data
-                const coordRegex = /"latitude"\s*:\s*(-?[\d.]+).*?"longitude"\s*:\s*(-?[\d.]+)/s;
-                const coordMatch2 = htmlContent.match(coordRegex);
-                if (coordMatch2) {
+                // Method 2: Try @lat,lng pattern
+                const atMatch = htmlContent.match(/@(-?[\d.]+),(-?[\d.]+)/);
+                if (atMatch) {
                     coordinates = {
-                        lat: parseFloat(coordMatch2[1]),
-                        lng: parseFloat(coordMatch2[2])
+                        lat: parseFloat(atMatch[1]),
+                        lng: parseFloat(atMatch[2])
                     };
-                    console.log('✓ Extracted coordinates from JSON-LD:', coordinates);
+                    console.log('✓ Extracted coordinates from @ pattern:', coordinates);
+                } else {
+                    // Method 3: Try center= parameter
+                    const centerMatch = htmlContent.match(/center=(-?[\d.]+)%2C(-?[\d.]+)/);
+                    if (centerMatch) {
+                        coordinates = {
+                            lat: parseFloat(centerMatch[1]),
+                            lng: parseFloat(centerMatch[2])
+                        };
+                        console.log('✓ Extracted coordinates from center parameter:', coordinates);
+                    } else {
+                        // Method 4: Try JSON-LD or other embedded data
+                        const coordRegex = /"latitude"\s*:\s*(-?[\d.]+).*?"longitude"\s*:\s*(-?[\d.]+)/s;
+                        const coordMatch2 = htmlContent.match(coordRegex);
+                        if (coordMatch2) {
+                            coordinates = {
+                                lat: parseFloat(coordMatch2[1]),
+                                lng: parseFloat(coordMatch2[2])
+                            };
+                            console.log('✓ Extracted coordinates from JSON-LD:', coordinates);
+                        } else {
+                            // Method 5: Try ll= parameter (lat/lng)
+                            const llMatch = htmlContent.match(/ll=(-?[\d.]+)%2C(-?[\d.]+)/);
+                            if (llMatch) {
+                                coordinates = {
+                                    lat: parseFloat(llMatch[1]),
+                                    lng: parseFloat(llMatch[2])
+                                };
+                                console.log('✓ Extracted coordinates from ll parameter:', coordinates);
+                            } else {
+                                console.log('⚠ Could not extract coordinates from HTML');
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -638,7 +670,7 @@ app.post('/api/place-from-url', async (req, res) => {
             phone_number: phoneNumber, // Phone number if available
             national_phone_number: apiData?.national_phone_number, // National format phone
             website: website, // Website URL if available
-            formatted_address: address,
+            // formatted_address removed - not displayed in Google Maps UI
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : [],
             // Action buttons (with fallbacks)

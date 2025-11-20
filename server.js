@@ -246,8 +246,9 @@ app.post('/api/place-from-url', async (req, res) => {
         if (description) {
             console.log('Raw description:', description);
 
-            // Extract price level (₩₩, $$, ¥1~1,000, etc.) - improved pattern
-            const priceMatch = description.match(/(₩{1,4}|\${1,4}|¥[\d,~]+|€{1,4}|£{1,4})/);
+            // Extract price level (₩₩, $$, ¥1~1,000, 5,000원~10,000원, etc.)
+            // Try to match actual price ranges first (with numbers), then fall back to symbols
+            const priceMatch = description.match(/(₩[\d,~]+|¥[\d,~]+|€[\d,~]+|£[\d,~]+|\$[\d,~]+|[\d,~]+원(?:~[\d,~]+원)?|₩{1,4}|\${1,4}|€{1,4}|£{1,4})/);
             if (priceMatch) {
                 priceLevel = priceMatch[1];
                 console.log('Found price level:', priceLevel);
@@ -454,16 +455,24 @@ app.post('/api/place-from-url', async (req, res) => {
             if (apiData.rating) rating = apiData.rating;
             if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
             if (apiData.price_level !== undefined) {
-                // Convert numeric price level (0-4) to symbols based on language
-                let currencySymbol = '$';
-                if (detectedLang === 'ko') currencySymbol = '₩';
-                else if (detectedLang === 'ja') currencySymbol = '¥';
-                else if (detectedLang === 'zh-CN' || detectedLang === 'zh-TW') currencySymbol = '¥';
-                else if (detectedLang === 'fr' || detectedLang === 'de' || detectedLang === 'it' || detectedLang === 'es') currencySymbol = '€';
-                else if (detectedLang === 'en-GB') currencySymbol = '£';
+                // Only use API price_level if HTML didn't provide actual price range
+                // HTML can provide detailed prices like "¥2,000~3,000" while API only gives 0-4
+                const htmlHasActualPrice = priceLevel && /\d/.test(priceLevel);
 
-                const priceSymbols = ['', currencySymbol, currencySymbol.repeat(2), currencySymbol.repeat(3), currencySymbol.repeat(4)];
-                priceLevel = priceSymbols[apiData.price_level] || priceLevel;
+                if (!htmlHasActualPrice) {
+                    // Convert numeric price level (0-4) to symbols based on language
+                    let currencySymbol = '$';
+                    if (detectedLang === 'ko') currencySymbol = '₩';
+                    else if (detectedLang === 'ja') currencySymbol = '¥';
+                    else if (detectedLang === 'zh-CN' || detectedLang === 'zh-TW') currencySymbol = '¥';
+                    else if (detectedLang === 'fr' || detectedLang === 'de' || detectedLang === 'it' || detectedLang === 'es') currencySymbol = '€';
+                    else if (detectedLang === 'en-GB') currencySymbol = '£';
+
+                    const priceSymbols = ['', currencySymbol, currencySymbol.repeat(2), currencySymbol.repeat(3), currencySymbol.repeat(4)];
+                    priceLevel = priceSymbols[apiData.price_level] || priceLevel;
+                } else {
+                    console.log('Keeping HTML price range (has actual amounts):', priceLevel);
+                }
             }
             if (apiData.business_status) {
                 // Convert to Korean

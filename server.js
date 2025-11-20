@@ -52,31 +52,8 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        // If URL is a query format with ftid, convert it to a /place/ URL for better HTML structure
-        const ftidCheckMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
-        if (ftidCheckMatch && finalUrl.includes('?q=') && !finalUrl.includes('/place/')) {
-            const ftid = ftidCheckMatch[1];
-            console.log('Detected ftid query URL, converting to /place/ URL for better data extraction...');
-
-            // Create a /place/ URL using ftid that will redirect to the proper place page
-            const ftidPlaceUrl = `https://www.google.com/maps/place/?ftid=${ftid}`;
-            console.log('Trying ftid place URL:', ftidPlaceUrl);
-
-            try {
-                const { execSync } = require('child_process');
-                const curlCommand = `curl -Ls -o /dev/null -w %{url_effective} "${ftidPlaceUrl}"`;
-                const redirectedUrl = execSync(curlCommand, { encoding: 'utf8', timeout: 10000 }).trim();
-
-                if (redirectedUrl && redirectedUrl.startsWith('http') && redirectedUrl.includes('/place/')) {
-                    finalUrl = redirectedUrl;
-                    console.log('✓ Converted to /place/ URL:', finalUrl);
-                } else {
-                    console.log('⚠ ftid conversion did not produce /place/ URL, using original');
-                }
-            } catch (error) {
-                console.log('⚠ Error converting ftid URL:', error.message);
-            }
-        }
+        // REMOVED: ftid URL conversion - it doesn't work reliably
+        // Instead, we'll extract coordinates directly from the HTML response
 
         // Extract coordinates from URL for Places API
         let coordinates = null;
@@ -259,21 +236,49 @@ app.post('/api/place-from-url', async (req, res) => {
             console.log('Attempting to extract coordinates and Place ID from HTML for ftid URL...');
             const htmlContent = koreanResponse.data;
 
-            // Try to find Place ID in HTML (various patterns)
-            const placeIdPatterns = [
-                /ludocid[=:](\d+)/i,
-                /data-fid[=:]"([^"]+)"/i,
-                /"([A-Za-z0-9_-]{20,})"/,  // Place IDs are usually 20+ chars
-            ];
+            // Method 1: Convert ftid to ludocid (decimal Place ID)
+            // ftid format: 0x357c99005667dab9:0x79a9350da17f03e3
+            // Second part after colon is the ludocid in hexadecimal
+            const ftidParts = placeId.split(':');
+            if (ftidParts.length === 2) {
+                const hexLudocid = ftidParts[1].replace('0x', '');
+                try {
+                    const ludocid = BigInt('0x' + hexLudocid).toString();
+                    console.log('Converted ftid to ludocid:', ludocid);
 
-            for (const pattern of placeIdPatterns) {
-                const match = htmlContent.match(pattern);
-                if (match) {
-                    const extractedPlaceId = match[1];
-                    console.log('Found potential Place ID:', extractedPlaceId);
-                    // We'll keep using ftid for now, but log this for debugging
-                    break;
+                    // Search for this ludocid in HTML
+                    if (htmlContent.includes(ludocid)) {
+                        console.log('✓ Found ludocid in HTML content');
+                    }
+                } catch (e) {
+                    console.log('Could not convert ftid to ludocid:', e.message);
                 }
+            }
+
+            // Method 2: Try to find ChIJ Place ID in HTML (Google's standard format)
+            let extractedPlaceId = null;
+
+            // Pattern 1: ChIJ... format (most common)
+            const chijPattern = /(ChIJ[A-Za-z0-9_-]{20,})/;
+            const chijMatch = htmlContent.match(chijPattern);
+            if (chijMatch) {
+                extractedPlaceId = chijMatch[1];
+                console.log('✓ Found ChIJ Place ID:', extractedPlaceId);
+            }
+
+            // Pattern 2: ludocid in various formats
+            if (!extractedPlaceId) {
+                const ludocidPattern = /ludocid[=:](\d+)/i;
+                const ludocidMatch = htmlContent.match(ludocidPattern);
+                if (ludocidMatch) {
+                    extractedPlaceId = ludocidMatch[1];
+                    console.log('✓ Found ludocid:', extractedPlaceId);
+                }
+            }
+
+            // If we found a Place ID, store it for Place Details API
+            if (extractedPlaceId) {
+                placeId = extractedPlaceId;
             }
 
             // Try to extract coordinates from HTML with validation
@@ -281,15 +286,22 @@ app.post('/api/place-from-url', async (req, res) => {
                 return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
             };
 
-            // Method 1: !3d and !4d patterns
-            const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
-            const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
-            if (html3dMatch && html4dMatch) {
-                const lat = parseFloat(html3dMatch[1]);
-                const lng = parseFloat(html4dMatch[1]);
-                if (isValidCoord(lat, lng)) {
-                    coordinates = { lat, lng };
-                    console.log('✓ Extracted coordinates from HTML (!3d/!4d):', coordinates);
+            // Method 1: !3d and !4d patterns (HIGHEST PRIORITY - most reliable)
+            const all3d = htmlContent.match(/!3d(-?[\d.]+)/g);
+            const all4d = htmlContent.match(/!4d(-?[\d.]+)/g);
+
+            if (all3d && all4d && all3d.length > 0 && all4d.length > 0) {
+                // Try all combinations to find valid coordinates
+                for (let i = 0; i < Math.min(all3d.length, all4d.length); i++) {
+                    const lat = parseFloat(all3d[i].replace('!3d', ''));
+                    const lng = parseFloat(all4d[i].replace('!4d', ''));
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log(`✓ Extracted coordinates from HTML (!3d/!4d pair ${i}):`, coordinates);
+                        break;
+                    } else {
+                        console.log(`  Tried !3d/!4d pair ${i}:`, { lat, lng }, '- invalid');
+                    }
                 }
             }
 
@@ -302,11 +314,28 @@ app.post('/api/place-from-url', async (req, res) => {
                     if (isValidCoord(lat, lng)) {
                         coordinates = { lat, lng };
                         console.log('✓ Extracted coordinates from HTML (center):', coordinates);
+                    } else {
+                        console.log('  Tried center parameter:', { lat, lng }, '- invalid');
                     }
                 }
             }
 
-            // Method 3: JSON-LD or embedded data
+            // Method 3: ll= parameter
+            if (!coordinates) {
+                const llMatch = htmlContent.match(/ll=(-?[\d.]+)%2C(-?[\d.]+)/);
+                if (llMatch) {
+                    const lat = parseFloat(llMatch[1]);
+                    const lng = parseFloat(llMatch[2]);
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log('✓ Extracted coordinates from HTML (ll):', coordinates);
+                    } else {
+                        console.log('  Tried ll parameter:', { lat, lng }, '- invalid');
+                    }
+                }
+            }
+
+            // Method 4: JSON-LD or embedded data
             if (!coordinates) {
                 const coordPattern = /"latitude["\s:]+(-?[\d.]+)[\s,]+"longitude["\s:]+(-?[\d.]+)/i;
                 const coordMatch = htmlContent.match(coordPattern);
@@ -316,12 +345,14 @@ app.post('/api/place-from-url', async (req, res) => {
                     if (isValidCoord(lat, lng)) {
                         coordinates = { lat, lng };
                         console.log('✓ Extracted coordinates from HTML (JSON-LD):', coordinates);
+                    } else {
+                        console.log('  Tried JSON-LD:', { lat, lng }, '- invalid');
                     }
                 }
             }
 
             if (!coordinates) {
-                console.log('⚠ Could not extract valid coordinates from HTML');
+                console.log('⚠ Could not extract valid coordinates from HTML after trying all methods');
             }
         }
 
@@ -390,15 +421,15 @@ app.post('/api/place-from-url', async (req, res) => {
                 }
             }
 
-            // Pattern 3: Star symbols only "★★★★☆" without number
-            if (!ratingFromDesc && rating === 0) {
+            // Pattern 3: Star symbols only "★★★★☆" without number - ALWAYS TRY THIS
+            if (rating === 0) {
                 const starOnly = description.match(/([★☆]{3,})/);
                 if (starOnly) {
                     const stars = starOnly[1];
                     const filledStars = (stars.match(/★/g) || []).length;
                     const totalStars = stars.length;
                     rating = (filledStars / totalStars) * 5;
-                    console.log('Found rating from stars only (pattern 3):', rating);
+                    console.log('Found rating from stars only (pattern 3):', rating, 'filled:', filledStars, 'total:', totalStars);
                 }
             }
 
@@ -502,14 +533,73 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Try to get accurate rating/review data from Places API (New v1)
         let apiData = null;
-        if (process.env.GOOGLE_MAPS_API_KEY && coordinates && primaryName) {
-            console.log('Attempting Places API (New) v1 with Text Search...');
-            console.log('Coordinates before API call:', coordinates);
-            console.log('Primary name:', primaryName);
-            console.log('Language:', detectedLang);
-            try {
-                const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
+        // Strategy 1: If we have Place ID, use Place Details API directly (NO COORDINATES NEEDED!)
+        if (apiKey && placeId && placeId.startsWith('ChIJ')) {
+            console.log('Attempting Places API (New) v1 with Place Details...');
+            console.log('Using Place ID:', placeId);
+            try {
+                const detailsUrl = `https://places.googleapis.com/v1/places/${placeId}`;
+
+                const detailsResponse = await axios.get(detailsUrl, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Goog-Api-Key': apiKey,
+                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours'
+                    },
+                    timeout: 10000
+                });
+
+                const place = detailsResponse.data;
+                console.log('✓ Places API Place Details success!');
+                console.log('  Rating:', place.rating);
+                console.log('  User Rating Count:', place.userRatingCount);
+                console.log('  Price Range:', place.priceRange);
+                console.log('  Delivery:', place.delivery);
+                console.log('  Takeout:', place.takeout);
+
+                // Extract coordinates from API response if available
+                if (place.location && !coordinates) {
+                    coordinates = {
+                        lat: place.location.latitude,
+                        lng: place.location.longitude
+                    };
+                    console.log('  Coordinates from API:', coordinates);
+                }
+
+                // Map to our format
+                apiData = {
+                    name: place.displayName?.text || place.displayName,
+                    rating: place.rating,
+                    user_ratings_total: place.userRatingCount,
+                    price_range: place.priceRange,
+                    price_level: place.priceLevel,
+                    business_status: place.businessStatus,
+                    types: place.types,
+                    formatted_phone_number: place.internationalPhoneNumber,
+                    national_phone_number: place.nationalPhoneNumber,
+                    website: place.websiteUri,
+                    google_maps_uri: place.googleMapsUri,
+                    delivery: place.delivery,
+                    takeout: place.takeout,
+                    dine_in: place.dineIn,
+                    opening_hours: place.currentOpeningHours
+                };
+
+                console.log('Mapped apiData from Place Details:', JSON.stringify(apiData, null, 2));
+            } catch (error) {
+                console.log('Places API Place Details error:', error.message);
+                if (error.response) {
+                    console.log('Error response:', error.response.data);
+                }
+            }
+        }
+
+        // Strategy 2: If we have coordinates, use Text Search API
+        if (!apiData && apiKey && coordinates && primaryName) {
+            console.log('Attempting Places API (New) v1 with Text Search...');
+            try {
                 // Use Text Search API to find place and get all details in one call
                 console.log('Searching for place with Text Search API...');
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';

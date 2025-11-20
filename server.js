@@ -382,64 +382,73 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        // Try to get accurate rating/review data from Places API
+        // Try to get accurate rating/review data from Places API (New v1)
         let apiData = null;
         if (process.env.GOOGLE_MAPS_API_KEY && coordinates && primaryName) {
-            console.log('Attempting Places API with Find Place...');
+            console.log('Attempting Places API (New) v1 with Text Search...');
             try {
                 const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-                // Step 1: Use Find Place to get ChIJ Place ID
-                console.log('Step 1: Finding place with coordinates and name...');
-                const findPlaceUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
-                const findPlaceParams = {
-                    input: primaryName,
-                    inputtype: 'textquery',
-                    locationbias: `point:${coordinates.lat},${coordinates.lng}`,
-                    key: apiKey,
-                    language: detectedLang,
-                    fields: 'place_id'
+                // Use Text Search API to find place and get all details in one call
+                console.log('Searching for place with Text Search API...');
+                const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
+
+                const requestBody = {
+                    textQuery: primaryName,
+                    locationBias: {
+                        circle: {
+                            center: {
+                                latitude: coordinates.lat,
+                                longitude: coordinates.lng
+                            },
+                            radius: 500.0  // 500 meters radius
+                        }
+                    },
+                    languageCode: detectedLang,
+                    maxResultCount: 1
                 };
 
-                const findResponse = await axios.get(findPlaceUrl, {
-                    params: findPlaceParams,
-                    timeout: 5000
+                const searchResponse = await axios.post(searchUrl, requestBody, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Goog-Api-Key': apiKey,
+                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri'
+                    },
+                    timeout: 10000
                 });
 
-                if (findResponse.data.status === 'OK' && findResponse.data.candidates && findResponse.data.candidates.length > 0) {
-                    const placeId = findResponse.data.candidates[0].place_id;
-                    console.log('✓ Found Place ID:', placeId);
+                if (searchResponse.data.places && searchResponse.data.places.length > 0) {
+                    const place = searchResponse.data.places[0];
+                    console.log('✓ Places API (New) success!');
+                    console.log('  Place ID:', place.id);
+                    console.log('  Display Name:', place.displayName);
+                    console.log('  Rating:', place.rating);
+                    console.log('  User Rating Count:', place.userRatingCount);
+                    console.log('  Price Range:', place.priceRange);
+                    console.log('  Price Level:', place.priceLevel);
+                    console.log('  Business Status:', place.businessStatus);
 
-                    // Step 2: Get detailed info with Place Details API
-                    console.log('Step 2: Fetching place details...');
-                    const detailsUrl = 'https://maps.googleapis.com/maps/api/place/details/json';
-                    const detailsParams = {
-                        place_id: placeId,
-                        key: apiKey,
-                        language: detectedLang,
-                        fields: 'name,rating,user_ratings_total,price_level,business_status,types,formatted_address,formatted_phone_number,website'
+                    // Map new API format to old format for compatibility
+                    apiData = {
+                        name: place.displayName?.text || place.displayName,
+                        rating: place.rating,
+                        user_ratings_total: place.userRatingCount,
+                        price_range: place.priceRange,  // NEW: Actual price range with amounts
+                        price_level: place.priceLevel,  // Still available as fallback
+                        business_status: place.businessStatus,
+                        types: place.types,
+                        formatted_address: place.formattedAddress,
+                        formatted_phone_number: place.internationalPhoneNumber,
+                        website: place.websiteUri
                     };
-
-                    const detailsResponse = await axios.get(detailsUrl, {
-                        params: detailsParams,
-                        timeout: 5000
-                    });
-
-                    if (detailsResponse.data.status === 'OK' && detailsResponse.data.result) {
-                        apiData = detailsResponse.data.result;
-                        console.log('✓ Places API success!');
-                        console.log('  Rating:', apiData.rating);
-                        console.log('  Reviews:', apiData.user_ratings_total);
-                        console.log('  Price Level:', apiData.price_level);
-                        console.log('  Business Status:', apiData.business_status);
-                    } else {
-                        console.log('Place Details returned:', detailsResponse.data.status);
-                    }
                 } else {
-                    console.log('Find Place returned:', findResponse.data.status);
+                    console.log('Text Search returned no results');
                 }
             } catch (error) {
-                console.log('Places API error:', error.message);
+                console.log('Places API (New) error:', error.message);
+                if (error.response) {
+                    console.log('Error response:', error.response.data);
+                }
                 console.log('Falling back to HTML parsing...');
             }
         } else {
@@ -448,19 +457,61 @@ app.post('/api/place-from-url', async (req, res) => {
             if (!primaryName) console.log('No place name extracted');
         }
 
-        // Priority: Places API > HTML parsing
+        // Priority: API priceRange > HTML parsing > API priceLevel
         // Use Places API data if available (most accurate)
         if (apiData) {
             console.log('Using Places API data as primary source');
             if (apiData.rating) rating = apiData.rating;
             if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
-            if (apiData.price_level !== undefined) {
-                // Only use API price_level if HTML didn't provide actual price range
-                // HTML can provide detailed prices like "¥2,000~3,000" while API only gives 0-4
-                const htmlHasActualPrice = priceLevel && /\d/.test(priceLevel);
 
-                if (!htmlHasActualPrice) {
-                    // Convert numeric price level (0-4) to symbols based on language
+            // Handle price information with priority order:
+            // 1. API priceRange (actual amounts like ₩10,000~₩20,000)
+            // 2. HTML parsed price (from og:description)
+            // 3. API priceLevel (relative symbols like ₩₩₩)
+            if (apiData.price_range && apiData.price_range.startPrice) {
+                // NEW API provides actual price range with currency!
+                const startPrice = apiData.price_range.startPrice;
+                const endPrice = apiData.price_range.endPrice;
+
+                // Map currency code to symbol
+                const currencySymbols = {
+                    'KRW': '₩', 'USD': '$', 'JPY': '¥', 'CNY': '¥',
+                    'EUR': '€', 'GBP': '£', 'TWD': 'NT$', 'HKD': 'HK$'
+                };
+                const symbol = currencySymbols[startPrice.currencyCode] || startPrice.currencyCode;
+
+                // Format price with thousands separator
+                const formatPrice = (priceObj) => {
+                    const amount = parseInt(priceObj.units || 0);
+                    return amount.toLocaleString('en-US');
+                };
+
+                if (endPrice && endPrice.units) {
+                    priceLevel = `${symbol}${formatPrice(startPrice)}~${symbol}${formatPrice(endPrice)}`;
+                } else {
+                    // No upper limit (e.g., "$100 and above")
+                    priceLevel = `${symbol}${formatPrice(startPrice)}+`;
+                }
+                console.log('Using API price range (with actual amounts):', priceLevel);
+            } else if (priceLevel && /\d/.test(priceLevel)) {
+                // HTML already has actual price range, keep it
+                console.log('Keeping HTML price range (has actual amounts):', priceLevel);
+            } else if (apiData.price_level !== undefined) {
+                // Fallback to price level symbols (PRICE_LEVEL_INEXPENSIVE, etc.)
+                // Map enum values to numeric levels
+                const levelMap = {
+                    'PRICE_LEVEL_FREE': 0,
+                    'PRICE_LEVEL_INEXPENSIVE': 1,
+                    'PRICE_LEVEL_MODERATE': 2,
+                    'PRICE_LEVEL_EXPENSIVE': 3,
+                    'PRICE_LEVEL_VERY_EXPENSIVE': 4
+                };
+
+                const numLevel = typeof apiData.price_level === 'string'
+                    ? levelMap[apiData.price_level]
+                    : apiData.price_level;
+
+                if (numLevel !== undefined && numLevel > 0) {
                     let currencySymbol = '$';
                     if (detectedLang === 'ko') currencySymbol = '₩';
                     else if (detectedLang === 'ja') currencySymbol = '¥';
@@ -468,10 +519,8 @@ app.post('/api/place-from-url', async (req, res) => {
                     else if (detectedLang === 'fr' || detectedLang === 'de' || detectedLang === 'it' || detectedLang === 'es') currencySymbol = '€';
                     else if (detectedLang === 'en-GB') currencySymbol = '£';
 
-                    const priceSymbols = ['', currencySymbol, currencySymbol.repeat(2), currencySymbol.repeat(3), currencySymbol.repeat(4)];
-                    priceLevel = priceSymbols[apiData.price_level] || priceLevel;
-                } else {
-                    console.log('Keeping HTML price range (has actual amounts):', priceLevel);
+                    priceLevel = currencySymbol.repeat(numLevel);
+                    console.log('Using API price level symbols:', priceLevel);
                 }
             }
             if (apiData.business_status) {

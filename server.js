@@ -559,6 +559,19 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Final rating:', rating, 'Final reviews:', reviewCount);
 
+        // Fallback for missing API data
+        // If API failed, use original URL as google_maps_uri
+        const googleMapsUri = apiData?.google_maps_uri || finalUrl;
+        const directionsUri = apiData?.directions_uri || (finalUrl ? finalUrl + '/directions' : null);
+
+        // Infer delivery/takeout from category if API didn't provide it
+        const isRestaurant = category && (
+            category.includes('레스토랑') || category.includes('음식점') || category.includes('restaurant') ||
+            category.includes('cafe') || category.includes('카페') || category.includes('food')
+        );
+        const delivery = apiData?.delivery !== undefined ? apiData.delivery : (isRestaurant ? true : undefined);
+        const takeout = apiData?.takeout !== undefined ? apiData.takeout : (isRestaurant ? true : undefined);
+
         // Build response matching Korean Google Maps display format
         const placeData = {
             name: primaryName, // Korean/English name (what Korean users see first)
@@ -573,12 +586,12 @@ app.post('/api/place-from-url', async (req, res) => {
             formatted_address: address,
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : [],
-            // Action buttons
-            google_maps_uri: apiData?.google_maps_uri,
-            directions_uri: apiData?.directions_uri,
+            // Action buttons (with fallbacks)
+            google_maps_uri: googleMapsUri,
+            directions_uri: directionsUri,
             reservable: apiData?.reservable,
-            delivery: apiData?.delivery,
-            takeout: apiData?.takeout,
+            delivery: delivery,
+            takeout: takeout,
             dine_in: apiData?.dine_in,
             opening_hours: apiData?.opening_hours
         };

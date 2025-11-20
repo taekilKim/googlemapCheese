@@ -31,32 +31,6 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Fetching metadata from:', url);
         console.log('Requested language:', language || 'auto');
 
-        // Extract Place ID from URL for Places API
-        let placeId = null;
-
-        // Pattern 1: /g/PLACE_ID format
-        const placeIdMatch1 = url.match(/\/g\/([a-zA-Z0-9_-]+)/);
-        if (placeIdMatch1) {
-            // Convert short ID to full Place ID (ChIJ format)
-            // We'll use the hex ID instead if available
-            placeId = placeIdMatch1[1];
-            console.log('Found short place ID:', placeId);
-        }
-
-        // Pattern 2: data=...!1s0xHEXID:0xHEXID format
-        const placeIdMatch2 = url.match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
-        if (placeIdMatch2) {
-            placeId = placeIdMatch2[1];
-            console.log('Found hex place ID:', placeId);
-        }
-
-        // Pattern 3: ftid= parameter
-        const placeIdMatch3 = url.match(/ftid=([^&]+)/);
-        if (placeIdMatch3) {
-            placeId = placeIdMatch3[1];
-            console.log('Found ftid place ID:', placeId);
-        }
-
         // Detect language from URL or use provided language
         let detectedLang = language || 'en';
 
@@ -79,42 +53,6 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Detected local language:', detectedLang);
 
-        // Try to get place details from Places API if we have a Place ID
-        let apiData = null;
-        if (placeId && process.env.GOOGLE_MAPS_API_KEY) {
-            console.log('Attempting to fetch from Places API...');
-            try {
-                const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-
-                // Use the legacy Places API (more compatible)
-                const apiUrl = `https://maps.googleapis.com/maps/api/place/details/json`;
-                const apiParams = {
-                    place_id: placeId,
-                    key: apiKey,
-                    language: detectedLang,
-                    fields: 'name,rating,user_ratings_total,price_level,business_status,types,formatted_address,formatted_phone_number,website,opening_hours'
-                };
-
-                const apiResponse = await axios.get(apiUrl, { params: apiParams, timeout: 5000 });
-
-                if (apiResponse.data.status === 'OK' && apiResponse.data.result) {
-                    apiData = apiResponse.data.result;
-                    console.log('✓ Places API success!');
-                    console.log('  Rating:', apiData.rating);
-                    console.log('  Reviews:', apiData.user_ratings_total);
-                    console.log('  Price Level:', apiData.price_level);
-                    console.log('  Business Status:', apiData.business_status);
-                } else {
-                    console.log('Places API returned:', apiResponse.data.status);
-                }
-            } catch (error) {
-                console.log('Places API error:', error.message);
-                console.log('Falling back to HTML parsing...');
-            }
-        } else {
-            console.log('No Place ID or API key, using HTML parsing only');
-        }
-
         // If it's a shortened URL (goo.gl or maps.app.goo.gl), expand it first using curl
         let finalUrl = url;
         if (url.includes('goo.gl')) {
@@ -134,6 +72,28 @@ app.post('/api/place-from-url', async (req, res) => {
                 console.log('Error expanding URL:', error.message);
                 console.log('Using original URL');
             }
+        }
+
+        // Extract coordinates from URL for Places API
+        let coordinates = null;
+        const coordMatch = finalUrl.match(/@(-?[\d.]+),(-?[\d.]+)/);
+        if (coordMatch) {
+            coordinates = {
+                lat: parseFloat(coordMatch[1]),
+                lng: parseFloat(coordMatch[2])
+            };
+            console.log('Extracted coordinates:', coordinates);
+        }
+
+        // Also check for 3d/4d parameters (more accurate)
+        const latMatch = finalUrl.match(/!3d(-?[\d.]+)/);
+        const lngMatch = finalUrl.match(/!4d(-?[\d.]+)/);
+        if (latMatch && lngMatch) {
+            coordinates = {
+                lat: parseFloat(latMatch[1]),
+                lng: parseFloat(lngMatch[1])
+            };
+            console.log('Extracted precise coordinates:', coordinates);
         }
 
         // Fetch both Korean and local language versions
@@ -397,6 +357,72 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('Found reviews from keywords:', reviewCount);
                 }
             }
+        }
+
+        // Try to get accurate rating/review data from Places API
+        let apiData = null;
+        if (process.env.GOOGLE_MAPS_API_KEY && coordinates && primaryName) {
+            console.log('Attempting Places API with Find Place...');
+            try {
+                const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+                // Step 1: Use Find Place to get ChIJ Place ID
+                console.log('Step 1: Finding place with coordinates and name...');
+                const findPlaceUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
+                const findPlaceParams = {
+                    input: primaryName,
+                    inputtype: 'textquery',
+                    locationbias: `point:${coordinates.lat},${coordinates.lng}`,
+                    key: apiKey,
+                    language: detectedLang,
+                    fields: 'place_id'
+                };
+
+                const findResponse = await axios.get(findPlaceUrl, {
+                    params: findPlaceParams,
+                    timeout: 5000
+                });
+
+                if (findResponse.data.status === 'OK' && findResponse.data.candidates && findResponse.data.candidates.length > 0) {
+                    const placeId = findResponse.data.candidates[0].place_id;
+                    console.log('✓ Found Place ID:', placeId);
+
+                    // Step 2: Get detailed info with Place Details API
+                    console.log('Step 2: Fetching place details...');
+                    const detailsUrl = 'https://maps.googleapis.com/maps/api/place/details/json';
+                    const detailsParams = {
+                        place_id: placeId,
+                        key: apiKey,
+                        language: detectedLang,
+                        fields: 'name,rating,user_ratings_total,price_level,business_status,types,formatted_address,formatted_phone_number,website'
+                    };
+
+                    const detailsResponse = await axios.get(detailsUrl, {
+                        params: detailsParams,
+                        timeout: 5000
+                    });
+
+                    if (detailsResponse.data.status === 'OK' && detailsResponse.data.result) {
+                        apiData = detailsResponse.data.result;
+                        console.log('✓ Places API success!');
+                        console.log('  Rating:', apiData.rating);
+                        console.log('  Reviews:', apiData.user_ratings_total);
+                        console.log('  Price Level:', apiData.price_level);
+                        console.log('  Business Status:', apiData.business_status);
+                    } else {
+                        console.log('Place Details returned:', detailsResponse.data.status);
+                    }
+                } else {
+                    console.log('Find Place returned:', findResponse.data.status);
+                }
+            } catch (error) {
+                console.log('Places API error:', error.message);
+                console.log('Falling back to HTML parsing...');
+            }
+        } else {
+            if (!process.env.GOOGLE_MAPS_API_KEY) console.log('No API key configured');
+            if (!coordinates) console.log('No coordinates extracted from URL');
+            if (!primaryName) console.log('No place name extracted');
         }
 
         // Priority: Places API > HTML parsing

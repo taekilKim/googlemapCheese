@@ -54,6 +54,8 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Extract coordinates from URL for Places API
         let coordinates = null;
+        let placeId = null;  // Will be used for ftid-based URLs
+
         const coordMatch = finalUrl.match(/@(-?[\d.]+),(-?[\d.]+)/);
         if (coordMatch) {
             coordinates = {
@@ -72,6 +74,13 @@ app.post('/api/place-from-url', async (req, res) => {
                 lng: parseFloat(lngMatch[1])
             };
             console.log('Extracted precise coordinates:', coordinates);
+        }
+
+        // Extract ftid parameter for query-based URLs
+        const ftidMatch = finalUrl.match(/[?&]ftid=([^&]+)/);
+        if (ftidMatch) {
+            placeId = ftidMatch[1];  // Store ftid as placeId for now
+            console.log('Extracted ftid:', placeId);
         }
 
         // Detect language from URL or use provided language
@@ -219,6 +228,77 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Phone:', phoneNumber);
         console.log('Website:', website);
 
+        // If we have ftid but no coordinates, try to extract from HTML
+        if (placeId && !coordinates) {
+            console.log('Attempting to extract coordinates and Place ID from HTML for ftid URL...');
+            const htmlContent = koreanResponse.data;
+
+            // Try to find Place ID in HTML (various patterns)
+            const placeIdPatterns = [
+                /ludocid[=:](\d+)/i,
+                /data-fid[=:]"([^"]+)"/i,
+                /"([A-Za-z0-9_-]{20,})"/,  // Place IDs are usually 20+ chars
+            ];
+
+            for (const pattern of placeIdPatterns) {
+                const match = htmlContent.match(pattern);
+                if (match) {
+                    const extractedPlaceId = match[1];
+                    console.log('Found potential Place ID:', extractedPlaceId);
+                    // We'll keep using ftid for now, but log this for debugging
+                    break;
+                }
+            }
+
+            // Try to extract coordinates from HTML with validation
+            const isValidCoord = (lat, lng) => {
+                return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+            };
+
+            // Method 1: !3d and !4d patterns
+            const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
+            const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
+            if (html3dMatch && html4dMatch) {
+                const lat = parseFloat(html3dMatch[1]);
+                const lng = parseFloat(html4dMatch[1]);
+                if (isValidCoord(lat, lng)) {
+                    coordinates = { lat, lng };
+                    console.log('✓ Extracted coordinates from HTML (!3d/!4d):', coordinates);
+                }
+            }
+
+            // Method 2: center= parameter
+            if (!coordinates) {
+                const centerMatch = htmlContent.match(/center=(-?[\d.]+)%2C(-?[\d.]+)/);
+                if (centerMatch) {
+                    const lat = parseFloat(centerMatch[1]);
+                    const lng = parseFloat(centerMatch[2]);
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log('✓ Extracted coordinates from HTML (center):', coordinates);
+                    }
+                }
+            }
+
+            // Method 3: JSON-LD or embedded data
+            if (!coordinates) {
+                const coordPattern = /"latitude["\s:]+(-?[\d.]+)[\s,]+"longitude["\s:]+(-?[\d.]+)/i;
+                const coordMatch = htmlContent.match(coordPattern);
+                if (coordMatch) {
+                    const lat = parseFloat(coordMatch[1]);
+                    const lng = parseFloat(coordMatch[2]);
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log('✓ Extracted coordinates from HTML (JSON-LD):', coordinates);
+                    }
+                }
+            }
+
+            if (!coordinates) {
+                console.log('⚠ Could not extract valid coordinates from HTML');
+            }
+        }
+
         // Parse the place name and address from Korean version
         const koreanNameParts = koreanName.split(' · ');
         const primaryName = koreanNameParts[0];
@@ -281,6 +361,18 @@ app.post('/api/place-from-url', async (req, res) => {
                     rating = filledStars;
                     reviewCount = parseInt(starRating[2].replace(/,/g, ''));
                     console.log('Found rating from stars (pattern 2):', rating, 'Reviews:', reviewCount);
+                }
+            }
+
+            // Pattern 3: Star symbols only "★★★★☆" without number
+            if (!ratingFromDesc && rating === 0) {
+                const starOnly = description.match(/([★☆]{3,})/);
+                if (starOnly) {
+                    const stars = starOnly[1];
+                    const filledStars = (stars.match(/★/g) || []).length;
+                    const totalStars = stars.length;
+                    rating = (filledStars / totalStars) * 5;
+                    console.log('Found rating from stars only (pattern 3):', rating);
                 }
             }
 

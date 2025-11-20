@@ -255,20 +255,30 @@ app.post('/api/place-from-url', async (req, res) => {
                 }
             }
 
-            // Method 2: Try to find Place ID in HTML (various patterns)
-            const placeIdPatterns = [
-                /ludocid[=:](\d+)/i,
-                /data-fid[=:]"([^"]+)"/i,
-                /"([A-Za-z0-9_-]{20,})"/,  // Place IDs are usually 20+ chars
-            ];
+            // Method 2: Try to find ChIJ Place ID in HTML (Google's standard format)
+            let extractedPlaceId = null;
 
-            for (const pattern of placeIdPatterns) {
-                const match = htmlContent.match(pattern);
-                if (match) {
-                    const extractedPlaceId = match[1];
-                    console.log('Found potential Place ID:', extractedPlaceId);
-                    break;
+            // Pattern 1: ChIJ... format (most common)
+            const chijPattern = /(ChIJ[A-Za-z0-9_-]{20,})/;
+            const chijMatch = htmlContent.match(chijPattern);
+            if (chijMatch) {
+                extractedPlaceId = chijMatch[1];
+                console.log('✓ Found ChIJ Place ID:', extractedPlaceId);
+            }
+
+            // Pattern 2: ludocid in various formats
+            if (!extractedPlaceId) {
+                const ludocidPattern = /ludocid[=:](\d+)/i;
+                const ludocidMatch = htmlContent.match(ludocidPattern);
+                if (ludocidMatch) {
+                    extractedPlaceId = ludocidMatch[1];
+                    console.log('✓ Found ludocid:', extractedPlaceId);
                 }
+            }
+
+            // If we found a Place ID, store it for Place Details API
+            if (extractedPlaceId) {
+                placeId = extractedPlaceId;
             }
 
             // Try to extract coordinates from HTML with validation
@@ -523,11 +533,73 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Try to get accurate rating/review data from Places API (New v1)
         let apiData = null;
-        if (process.env.GOOGLE_MAPS_API_KEY && coordinates && primaryName) {
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+        // Strategy 1: If we have Place ID, use Place Details API directly (NO COORDINATES NEEDED!)
+        if (apiKey && placeId && placeId.startsWith('ChIJ')) {
+            console.log('Attempting Places API (New) v1 with Place Details...');
+            console.log('Using Place ID:', placeId);
+            try {
+                const detailsUrl = `https://places.googleapis.com/v1/places/${placeId}`;
+
+                const detailsResponse = await axios.get(detailsUrl, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Goog-Api-Key': apiKey,
+                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours'
+                    },
+                    timeout: 10000
+                });
+
+                const place = detailsResponse.data;
+                console.log('✓ Places API Place Details success!');
+                console.log('  Rating:', place.rating);
+                console.log('  User Rating Count:', place.userRatingCount);
+                console.log('  Price Range:', place.priceRange);
+                console.log('  Delivery:', place.delivery);
+                console.log('  Takeout:', place.takeout);
+
+                // Extract coordinates from API response if available
+                if (place.location && !coordinates) {
+                    coordinates = {
+                        lat: place.location.latitude,
+                        lng: place.location.longitude
+                    };
+                    console.log('  Coordinates from API:', coordinates);
+                }
+
+                // Map to our format
+                apiData = {
+                    name: place.displayName?.text || place.displayName,
+                    rating: place.rating,
+                    user_ratings_total: place.userRatingCount,
+                    price_range: place.priceRange,
+                    price_level: place.priceLevel,
+                    business_status: place.businessStatus,
+                    types: place.types,
+                    formatted_phone_number: place.internationalPhoneNumber,
+                    national_phone_number: place.nationalPhoneNumber,
+                    website: place.websiteUri,
+                    google_maps_uri: place.googleMapsUri,
+                    delivery: place.delivery,
+                    takeout: place.takeout,
+                    dine_in: place.dineIn,
+                    opening_hours: place.currentOpeningHours
+                };
+
+                console.log('Mapped apiData from Place Details:', JSON.stringify(apiData, null, 2));
+            } catch (error) {
+                console.log('Places API Place Details error:', error.message);
+                if (error.response) {
+                    console.log('Error response:', error.response.data);
+                }
+            }
+        }
+
+        // Strategy 2: If we have coordinates, use Text Search API
+        if (!apiData && apiKey && coordinates && primaryName) {
             console.log('Attempting Places API (New) v1 with Text Search...');
             try {
-                const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-
                 // Use Text Search API to find place and get all details in one call
                 console.log('Searching for place with Text Search API...');
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';

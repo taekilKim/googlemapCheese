@@ -520,7 +520,8 @@
                             </div>
                         </div>
 
-                        <div class="action-buttons">
+                        <div class="action-buttons" id="actionButtons">
+                            <!-- Action buttons will be dynamically generated based on place info -->
                             <button class="action-btn">
                                 <span class="action-icon">directions</span>
                                 <span>길찾기</span>
@@ -701,6 +702,57 @@
             }
 
             document.getElementById('address').textContent = place.formatted_address || '주소 없음';
+
+            // Update action buttons based on available info
+            updateActionButtons(place);
+        }
+
+        // Update action buttons dynamically based on place information
+        function updateActionButtons(place) {
+            const container = document.getElementById('actionButtons');
+            container.innerHTML = '';
+
+            // Always show 길찾기 (Directions)
+            container.appendChild(createActionButton('directions', '길찾기'));
+
+            // Show 통화 (Call) if phone number is available
+            if (place.phone_number) {
+                container.appendChild(createActionButton('phone', '통화'));
+            }
+
+            // Show 웹사이트 (Website) if website is available
+            if (place.website) {
+                container.appendChild(createActionButton('language', '웹사이트'));
+            }
+
+            // Show 저장 (Save) or 주변 (Nearby) - prioritize 저장
+            container.appendChild(createActionButton('bookmark_border', '저장'));
+
+            // If no phone or website, show 주변 (Nearby)
+            if (!place.phone_number && !place.website) {
+                container.appendChild(createActionButton('near_me', '주변'));
+            }
+
+            // Always show 공유 (Share) as last button
+            container.appendChild(createActionButton('share', '공유'));
+        }
+
+        // Helper function to create action button
+        function createActionButton(icon, label) {
+            const button = document.createElement('button');
+            button.className = 'action-btn';
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'action-icon';
+            iconSpan.textContent = icon;
+
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = label;
+
+            button.appendChild(iconSpan);
+            button.appendChild(labelSpan);
+
+            return button;
         }
 
         // Update stars based on rating

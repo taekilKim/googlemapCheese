@@ -116,6 +116,41 @@ app.post('/api/place-from-url', async (req, res) => {
             });
         }
 
+        // Extract additional info from HTML: phone, website
+        let phoneNumber = null;
+        let website = null;
+
+        // Try to find phone number in various formats
+        const phoneLink = $korean('a[href^="tel:"]').first();
+        if (phoneLink.length) {
+            phoneNumber = phoneLink.attr('href').replace('tel:', '');
+        } else {
+            // Look for phone patterns in HTML text
+            const phonePattern = /(\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{4}/;
+            const bodyText = koreanResponse.data;
+            const phoneMatch = bodyText.match(phonePattern);
+            if (phoneMatch) {
+                phoneNumber = phoneMatch[0];
+            }
+        }
+
+        // Try to find website URL (not google.com, gstatic, etc.)
+        const links = $korean('a[href^="http"]');
+        links.each((i, elem) => {
+            const href = $korean(elem).attr('href');
+            if (href &&
+                !href.includes('google.com') &&
+                !href.includes('gstatic.com') &&
+                !href.includes('googleapis.com') &&
+                !href.includes('youtube.com')) {
+                website = href;
+                return false; // break loop
+            }
+        });
+
+        console.log('Phone:', phoneNumber);
+        console.log('Website:', website);
+
         // Parse the place name and address from Korean version
         const koreanNameParts = koreanName.split(' · ');
         const primaryName = koreanNameParts[0];
@@ -222,6 +257,8 @@ app.post('/api/place-from-url', async (req, res) => {
             user_ratings_total: reviewCount,
             price_level: priceLevel, // Price range (₩₩, $$, ¥1~1,000, etc.)
             business_status: businessStatus, // 폐업함, 영업 중, etc.
+            phone_number: phoneNumber, // Phone number if available
+            website: website, // Website URL if available
             formatted_address: address,
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : []

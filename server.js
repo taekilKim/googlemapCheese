@@ -619,6 +619,8 @@ app.post('/api/place-from-url', async (req, res) => {
                     maxResultCount: 1
                 };
 
+                console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
                 const searchResponse = await axios.post(searchUrl, requestBody, {
                     headers: {
                         'Content-Type': 'application/json',
@@ -688,8 +690,8 @@ app.post('/api/place-from-url', async (req, res) => {
         // Use Places API data if available (most accurate)
         if (apiData) {
             console.log('Using Places API data as primary source');
-            if (apiData.rating) rating = apiData.rating;
-            if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
+            if (apiData.rating !== undefined && apiData.rating !== null) rating = apiData.rating;
+            if (apiData.user_ratings_total !== undefined && apiData.user_ratings_total !== null) reviewCount = apiData.user_ratings_total;
 
             // Handle price information with priority order:
             // 1. API priceRange (actual amounts like ₩10,000~₩20,000)

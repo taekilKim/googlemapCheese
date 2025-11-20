@@ -53,9 +53,33 @@ app.post('/api/place-from-url', async (req, res) => {
 
         console.log('Detected local language:', detectedLang);
 
+        // If it's a shortened URL (goo.gl or maps.app.goo.gl), expand it first using curl
+        let finalUrl = url;
+        if (url.includes('goo.gl')) {
+            console.log('Expanding shortened URL with curl...');
+            try {
+                const { execSync } = require('child_process');
+                // Use curl to follow redirects and get final URL
+                const curlCommand = `curl -Ls -o /dev/null -w %{url_effective} "${url}"`;
+                const expandedUrl = execSync(curlCommand, { encoding: 'utf8', timeout: 10000 }).trim();
+                if (expandedUrl && expandedUrl.startsWith('http')) {
+                    finalUrl = expandedUrl;
+                    console.log('Expanded URL:', finalUrl);
+                } else {
+                    console.log('Could not expand URL, using original');
+                }
+            } catch (error) {
+                console.log('Error expanding URL:', error.message);
+                console.log('Using original URL');
+            }
+        }
+
         // Fetch both Korean and local language versions
         const fetchOptions = {
             maxRedirects: 20,
+            validateStatus: function (status) {
+                return status >= 200 && status < 400; // Accept redirects
+            },
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
@@ -63,7 +87,7 @@ app.post('/api/place-from-url', async (req, res) => {
         };
 
         // Fetch Korean version first (primary display name - what Korean users see on Google Maps)
-        const koreanResponse = await axios.get(url, {
+        const koreanResponse = await axios.get(finalUrl, {
             ...fetchOptions,
             headers: {
                 ...fetchOptions.headers,
@@ -74,7 +98,7 @@ app.post('/api/place-from-url', async (req, res) => {
         // Fetch local language version (secondary display name - for places outside Korea)
         let localResponse = null;
         if (detectedLang !== 'ko') {
-            localResponse = await axios.get(url, {
+            localResponse = await axios.get(finalUrl, {
                 ...fetchOptions,
                 headers: {
                     ...fetchOptions.headers,
@@ -194,26 +218,50 @@ app.post('/api/place-from-url', async (req, res) => {
                 businessStatus = '영업 중';
             }
 
-            // Extract rating from description (e.g., "4.5(433)" or "3.7 (649)")
-            const ratingFromDesc = description.match(/([\d.]+)\s*\(([,\d]+)\)/);
+            // Try multiple patterns to extract rating from description
+            // Pattern 1: "4.5(433)" or "3.7 (649)"
+            let ratingFromDesc = description.match(/([\d.]+)\s*\(([,\d]+)\)/);
             if (ratingFromDesc) {
                 rating = parseFloat(ratingFromDesc[1]);
                 reviewCount = parseInt(ratingFromDesc[2].replace(/,/g, ''));
-                console.log('Found rating from description:', rating, 'Reviews:', reviewCount);
+                console.log('Found rating from description (pattern 1):', rating, 'Reviews:', reviewCount);
+            }
+
+            // Pattern 2: Star symbols "★★★★☆" followed by number "(433)"
+            if (!ratingFromDesc) {
+                const starRating = description.match(/([★☆]+)\s*\(([,\d]+)\)/);
+                if (starRating) {
+                    const stars = starRating[1];
+                    const filledStars = (stars.match(/★/g) || []).length;
+                    rating = filledStars;
+                    reviewCount = parseInt(starRating[2].replace(/,/g, ''));
+                    console.log('Found rating from stars (pattern 2):', rating, 'Reviews:', reviewCount);
+                }
             }
 
             // Extract category - try different patterns
-            // Pattern 1: After stars/rating
-            const categoryMatch1 = description.match(/[★☆\d.()]+\s*·\s*(.+?)(?:·|$)/);
+            // Pattern 1: After rating/price
+            const categoryMatch1 = description.match(/[\d.()★☆,\s]+·\s*(.+?)(?:·|$)/);
             if (categoryMatch1) {
-                category = categoryMatch1[1].trim();
+                let cat = categoryMatch1[1].trim();
+                // Remove price if it's included in category
+                cat = cat.replace(/₩+|\$+|¥[\d,~]+|€+|£+/g, '').trim();
+                if (cat && cat.length > 0 && cat.length < 50) {
+                    category = cat;
+                }
             }
 
-            // Pattern 2: Last item after splitting by ·
+            // Pattern 2: Last non-empty item after splitting by ·
             if (!category) {
-                const parts = description.split('·');
-                if (parts.length > 1) {
-                    category = parts[parts.length - 1].trim();
+                const parts = description.split('·').map(p => p.trim()).filter(p => p);
+                if (parts.length > 0) {
+                    let lastPart = parts[parts.length - 1];
+                    // Clean up
+                    lastPart = lastPart.replace(/₩+|\$+|¥[\d,~]+|€+|£+/g, '').trim();
+                    lastPart = lastPart.replace(/[★☆]+/g, '').trim();
+                    if (lastPart && lastPart.length > 0 && lastPart.length < 50) {
+                        category = lastPart;
+                    }
                 }
             }
 
@@ -225,6 +273,8 @@ app.post('/api/place-from-url', async (req, res) => {
         const htmlContent = koreanResponse.data;
 
         if (rating === 0 || reviewCount === 0) {
+            console.log('Rating/reviews not found in description, searching HTML content...');
+
             // Pattern 1: ["4.1",123] or ["3.7",649]
             const pattern1 = /\["([\d.]+)",(\d+)\]/g;
             let matches1;
@@ -232,35 +282,45 @@ app.post('/api/place-from-url', async (req, res) => {
                 const possibleRating = parseFloat(matches1[1]);
                 const possibleReviews = parseInt(matches1[2]);
 
-                if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0) {
-                    rating = possibleRating;
-                    reviewCount = possibleReviews;
-                    console.log('Found rating from pattern 1:', rating, 'Reviews:', reviewCount);
+                if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0 && possibleReviews < 10000000) {
+                    if (rating === 0) rating = possibleRating;
+                    if (reviewCount === 0) reviewCount = possibleReviews;
+                    console.log('Found from pattern 1:', rating, 'Reviews:', reviewCount);
                     break;
                 }
             }
         }
 
         if (rating === 0 || reviewCount === 0) {
-            // Pattern 2: "4.1 stars" or similar with review count nearby
-            const pattern2 = /([\d.]+)\s*(?:stars?|별)/i;
-            const ratingMatch2 = htmlContent.match(pattern2);
-            if (ratingMatch2) {
-                const possibleRating = parseFloat(ratingMatch2[1]);
-                if (possibleRating >= 1 && possibleRating <= 5) {
+            // Pattern 2: Look for aria-label with rating info
+            const ariaPattern = /aria-label="([\d.]+)(?:점|stars?).*?(\d+)(?:개|reviews?)/i;
+            const ariaMatch = htmlContent.match(ariaPattern);
+            if (ariaMatch) {
+                if (rating === 0) rating = parseFloat(ariaMatch[1]);
+                if (reviewCount === 0) reviewCount = parseInt(ariaMatch[2].replace(/,/g, ''));
+                console.log('Found from aria-label:', rating, 'Reviews:', reviewCount);
+            }
+        }
+
+        if (rating === 0 || reviewCount === 0) {
+            // Pattern 3: More aggressive number search near rating keywords
+            const ratingKeywords = /([\d.]+)\s*(?:별|stars?|rating)/i;
+            const ratingMatch = htmlContent.match(ratingKeywords);
+            if (ratingMatch) {
+                const possibleRating = parseFloat(ratingMatch[1]);
+                if (possibleRating >= 1 && possibleRating <= 5 && rating === 0) {
                     rating = possibleRating;
-                    console.log('Found rating from pattern 2:', rating);
+                    console.log('Found rating from keywords:', rating);
                 }
             }
 
-            // Look for review count near rating
-            const pattern3 = /([\d,]+)\s*(?:reviews?|리뷰|건)/i;
-            const reviewMatch3 = htmlContent.match(pattern3);
-            if (reviewMatch3) {
-                const possibleReviews = parseInt(reviewMatch3[1].replace(/,/g, ''));
-                if (possibleReviews > 0) {
+            const reviewKeywords = /([\d,]+)\s*(?:리뷰|reviews?|건)/i;
+            const reviewMatch = htmlContent.match(reviewKeywords);
+            if (reviewMatch) {
+                const possibleReviews = parseInt(reviewMatch[1].replace(/,/g, ''));
+                if (possibleReviews > 0 && possibleReviews < 10000000 && reviewCount === 0) {
                     reviewCount = possibleReviews;
-                    console.log('Found reviews from pattern 3:', reviewCount);
+                    console.log('Found reviews from keywords:', reviewCount);
                 }
             }
         }

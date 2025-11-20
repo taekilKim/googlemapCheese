@@ -5,6 +5,102 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 
+// Puppeteer for rendering JavaScript and extracting dynamic content
+let chromium = null;
+let puppeteerCore = null;
+
+// Dynamically import Puppeteer (only loads when needed)
+async function getBrowser() {
+    if (!puppeteerCore) {
+        puppeteerCore = require('puppeteer-core');
+    }
+
+    if (!chromium) {
+        chromium = require('@sparticuz/chromium');
+    }
+
+    // Configure chromium for Vercel
+    const executablePath = await chromium.executablePath();
+
+    const browser = await puppeteerCore.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: executablePath,
+        headless: chromium.headless,
+    });
+
+    return browser;
+}
+
+// Extract rating and review count using Puppeteer (headless browser)
+async function extractWithPuppeteer(url, language = 'ko') {
+    let browser = null;
+    try {
+        console.log('🚀 Launching headless browser...');
+        browser = await getBrowser();
+
+        const page = await browser.newPage();
+
+        // Set language
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': `${language},en;q=0.9`
+        });
+
+        console.log('📄 Loading page:', url);
+        await page.goto(url, {
+            waitUntil: 'networkidle0',
+            timeout: 30000
+        });
+
+        // Wait a bit for dynamic content to load
+        await page.waitForTimeout(2000);
+
+        console.log('🔍 Extracting aria-label data...');
+
+        // Extract rating from aria-label="별표 3.5개"
+        const ratingData = await page.evaluate(() => {
+            const results = {};
+
+            // Find rating from aria-label
+            const ratingPattern = /별표\s+([\d.]+)개/;
+            const allElements = document.querySelectorAll('[aria-label]');
+
+            for (const el of allElements) {
+                const ariaLabel = el.getAttribute('aria-label');
+                if (ariaLabel) {
+                    // Check for rating
+                    const ratingMatch = ariaLabel.match(ratingPattern);
+                    if (ratingMatch && !results.rating) {
+                        results.rating = parseFloat(ratingMatch[1]);
+                        console.log('Found rating:', results.rating);
+                    }
+
+                    // Check for review count: "리뷰 649개" or "649개의 리뷰"
+                    const reviewMatch = ariaLabel.match(/리뷰\s+([\d,]+)개|^([\d,]+)개의?\s*리뷰/);
+                    if (reviewMatch && !results.reviewCount) {
+                        const count = reviewMatch[1] || reviewMatch[2];
+                        results.reviewCount = parseInt(count.replace(/,/g, ''));
+                        console.log('Found reviews:', results.reviewCount);
+                    }
+                }
+            }
+
+            return results;
+        });
+
+        console.log('✓ Extracted data:', ratingData);
+        return ratingData;
+
+    } catch (error) {
+        console.error('❌ Puppeteer error:', error.message);
+        return null;
+    } finally {
+        if (browser) {
+            await browser.close();
+        }
+    }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -134,6 +230,18 @@ app.post('/api/place-from-url', async (req, res) => {
                 console.log('Error expanding URL:', error.message);
                 console.log('Using original URL');
             }
+        }
+
+        // Try Puppeteer first to get accurate rating/review data from aria-label
+        let puppeteerData = null;
+        try {
+            console.log('Attempting Puppeteer extraction...');
+            puppeteerData = await extractWithPuppeteer(finalUrl, detectedLang);
+            if (puppeteerData && puppeteerData.rating) {
+                console.log('✓ Puppeteer extraction successful!');
+            }
+        } catch (error) {
+            console.log('Puppeteer extraction failed:', error.message);
         }
 
         // Fetch both Korean and local language versions
@@ -399,11 +507,19 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        // Use API data if available, otherwise use HTML-parsed data
+        // Priority: Puppeteer > Places API > HTML parsing
+        // Use Puppeteer data first (most accurate from rendered page)
+        if (puppeteerData) {
+            console.log('Using Puppeteer data as primary source');
+            if (puppeteerData.rating) rating = puppeteerData.rating;
+            if (puppeteerData.reviewCount) reviewCount = puppeteerData.reviewCount;
+        }
+
+        // Then use API data if available and not already set
         if (apiData) {
-            console.log('Using Places API data as primary source');
-            if (apiData.rating) rating = apiData.rating;
-            if (apiData.user_ratings_total) reviewCount = apiData.user_ratings_total;
+            console.log('Using Places API data as secondary source');
+            if (apiData.rating && rating === 0) rating = apiData.rating;
+            if (apiData.user_ratings_total && reviewCount === 0) reviewCount = apiData.user_ratings_total;
             if (apiData.price_level !== undefined) {
                 // Convert numeric price level (0-4) to symbols based on language
                 let currencySymbol = '$';

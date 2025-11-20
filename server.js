@@ -534,7 +534,7 @@ app.post('/api/place-from-url', async (req, res) => {
                         price_level: place.priceLevel,  // Still available as fallback
                         business_status: place.businessStatus,
                         types: place.types,
-                        formatted_address: place.formattedAddress,
+                        // formatted_address: place.formattedAddress,  // Removed - not displayed
                         formatted_phone_number: place.internationalPhoneNumber,
                         national_phone_number: place.nationalPhoneNumber,
                         website: place.websiteUri,
@@ -642,7 +642,7 @@ app.post('/api/place-from-url', async (req, res) => {
             }
             if (apiData.formatted_phone_number) phoneNumber = apiData.formatted_phone_number;
             if (apiData.website) website = apiData.website;
-            if (apiData.formatted_address && !address) address = apiData.formatted_address;
+            // if (apiData.formatted_address && !address) address = apiData.formatted_address;  // Removed - not displayed
             if (apiData.types && apiData.types.length > 0 && !category) {
                 // Use first type as category
                 category = apiData.types[0].replace(/_/g, ' ');
@@ -685,7 +685,7 @@ app.post('/api/place-from-url', async (req, res) => {
             phone_number: phoneNumber, // Phone number if available
             national_phone_number: apiData?.national_phone_number, // National format phone
             website: website, // Website URL if available
-            formatted_address: address,
+            // formatted_address removed - not displayed in UI
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
             photos: image ? [{ photo_reference: image }] : [],
             // Action buttons (with fallbacks)

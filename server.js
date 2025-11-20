@@ -560,17 +560,27 @@ app.post('/api/place-from-url', async (req, res) => {
         console.log('Final rating:', rating, 'Final reviews:', reviewCount);
 
         // Fallback for missing API data
-        // If API failed, use original URL as google_maps_uri
+        // ONLY use fallback if API completely failed (apiData is null)
         const googleMapsUri = apiData?.google_maps_uri || finalUrl;
         const directionsUri = apiData?.directions_uri || (finalUrl ? finalUrl + '/directions' : null);
 
-        // Infer delivery/takeout from category if API didn't provide it
-        const isRestaurant = category && (
-            category.includes('레스토랑') || category.includes('음식점') || category.includes('restaurant') ||
-            category.includes('cafe') || category.includes('카페') || category.includes('food')
-        );
-        const delivery = apiData?.delivery !== undefined ? apiData.delivery : (isRestaurant ? true : undefined);
-        const takeout = apiData?.takeout !== undefined ? apiData.takeout : (isRestaurant ? true : undefined);
+        // Only infer delivery/takeout if API completely failed
+        // If API succeeded but didn't return these fields, respect that (don't guess)
+        let delivery = apiData?.delivery;
+        let takeout = apiData?.takeout;
+
+        if (!apiData) {
+            // API completely failed - use category-based inference as fallback
+            const isRestaurant = category && (
+                category.includes('레스토랑') || category.includes('음식점') || category.includes('restaurant') ||
+                category.includes('cafe') || category.includes('카페') || category.includes('food')
+            );
+            delivery = isRestaurant ? true : undefined;
+            takeout = isRestaurant ? true : undefined;
+            console.log('Using fallback for delivery/takeout (API failed):', { delivery, takeout, category });
+        } else {
+            console.log('Using API data for delivery/takeout:', { delivery, takeout });
+        }
 
         // Build response matching Korean Google Maps display format
         const placeData = {

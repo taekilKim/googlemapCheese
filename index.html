@@ -26,7 +26,7 @@
 
         /* Default font-family (will be overridden by JavaScript based on platform) */
         body {
-            font-family: Roboto, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Google Sans', Roboto, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -35,12 +35,12 @@
             align-items: center;
         }
 
-        /* iOS font stack */
+        /* iOS - also uses Google Sans */
         body.ios {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+            font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
         }
 
-        /* Android font stack */
+        /* Android - uses Google Sans */
         body.android {
             font-family: 'Google Sans', Roboto, 'Noto Sans KR', sans-serif;
         }

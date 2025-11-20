@@ -52,6 +52,9 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
+        // REMOVED: ftid URL conversion - it doesn't work reliably
+        // Instead, we'll extract coordinates directly from the HTML response
+
         // Extract coordinates from URL for Places API
         let coordinates = null;
         let placeId = null;  // Will be used for ftid-based URLs
@@ -233,7 +236,26 @@ app.post('/api/place-from-url', async (req, res) => {
             console.log('Attempting to extract coordinates and Place ID from HTML for ftid URL...');
             const htmlContent = koreanResponse.data;
 
-            // Try to find Place ID in HTML (various patterns)
+            // Method 1: Convert ftid to ludocid (decimal Place ID)
+            // ftid format: 0x357c99005667dab9:0x79a9350da17f03e3
+            // Second part after colon is the ludocid in hexadecimal
+            const ftidParts = placeId.split(':');
+            if (ftidParts.length === 2) {
+                const hexLudocid = ftidParts[1].replace('0x', '');
+                try {
+                    const ludocid = BigInt('0x' + hexLudocid).toString();
+                    console.log('Converted ftid to ludocid:', ludocid);
+
+                    // Search for this ludocid in HTML
+                    if (htmlContent.includes(ludocid)) {
+                        console.log('✓ Found ludocid in HTML content');
+                    }
+                } catch (e) {
+                    console.log('Could not convert ftid to ludocid:', e.message);
+                }
+            }
+
+            // Method 2: Try to find Place ID in HTML (various patterns)
             const placeIdPatterns = [
                 /ludocid[=:](\d+)/i,
                 /data-fid[=:]"([^"]+)"/i,
@@ -245,7 +267,6 @@ app.post('/api/place-from-url', async (req, res) => {
                 if (match) {
                     const extractedPlaceId = match[1];
                     console.log('Found potential Place ID:', extractedPlaceId);
-                    // We'll keep using ftid for now, but log this for debugging
                     break;
                 }
             }
@@ -255,15 +276,22 @@ app.post('/api/place-from-url', async (req, res) => {
                 return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
             };
 
-            // Method 1: !3d and !4d patterns
-            const html3dMatch = htmlContent.match(/!3d(-?[\d.]+)/);
-            const html4dMatch = htmlContent.match(/!4d(-?[\d.]+)/);
-            if (html3dMatch && html4dMatch) {
-                const lat = parseFloat(html3dMatch[1]);
-                const lng = parseFloat(html4dMatch[1]);
-                if (isValidCoord(lat, lng)) {
-                    coordinates = { lat, lng };
-                    console.log('✓ Extracted coordinates from HTML (!3d/!4d):', coordinates);
+            // Method 1: !3d and !4d patterns (HIGHEST PRIORITY - most reliable)
+            const all3d = htmlContent.match(/!3d(-?[\d.]+)/g);
+            const all4d = htmlContent.match(/!4d(-?[\d.]+)/g);
+
+            if (all3d && all4d && all3d.length > 0 && all4d.length > 0) {
+                // Try all combinations to find valid coordinates
+                for (let i = 0; i < Math.min(all3d.length, all4d.length); i++) {
+                    const lat = parseFloat(all3d[i].replace('!3d', ''));
+                    const lng = parseFloat(all4d[i].replace('!4d', ''));
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log(`✓ Extracted coordinates from HTML (!3d/!4d pair ${i}):`, coordinates);
+                        break;
+                    } else {
+                        console.log(`  Tried !3d/!4d pair ${i}:`, { lat, lng }, '- invalid');
+                    }
                 }
             }
 
@@ -276,11 +304,28 @@ app.post('/api/place-from-url', async (req, res) => {
                     if (isValidCoord(lat, lng)) {
                         coordinates = { lat, lng };
                         console.log('✓ Extracted coordinates from HTML (center):', coordinates);
+                    } else {
+                        console.log('  Tried center parameter:', { lat, lng }, '- invalid');
                     }
                 }
             }
 
-            // Method 3: JSON-LD or embedded data
+            // Method 3: ll= parameter
+            if (!coordinates) {
+                const llMatch = htmlContent.match(/ll=(-?[\d.]+)%2C(-?[\d.]+)/);
+                if (llMatch) {
+                    const lat = parseFloat(llMatch[1]);
+                    const lng = parseFloat(llMatch[2]);
+                    if (isValidCoord(lat, lng)) {
+                        coordinates = { lat, lng };
+                        console.log('✓ Extracted coordinates from HTML (ll):', coordinates);
+                    } else {
+                        console.log('  Tried ll parameter:', { lat, lng }, '- invalid');
+                    }
+                }
+            }
+
+            // Method 4: JSON-LD or embedded data
             if (!coordinates) {
                 const coordPattern = /"latitude["\s:]+(-?[\d.]+)[\s,]+"longitude["\s:]+(-?[\d.]+)/i;
                 const coordMatch = htmlContent.match(coordPattern);
@@ -290,12 +335,14 @@ app.post('/api/place-from-url', async (req, res) => {
                     if (isValidCoord(lat, lng)) {
                         coordinates = { lat, lng };
                         console.log('✓ Extracted coordinates from HTML (JSON-LD):', coordinates);
+                    } else {
+                        console.log('  Tried JSON-LD:', { lat, lng }, '- invalid');
                     }
                 }
             }
 
             if (!coordinates) {
-                console.log('⚠ Could not extract valid coordinates from HTML');
+                console.log('⚠ Could not extract valid coordinates from HTML after trying all methods');
             }
         }
 
@@ -364,15 +411,15 @@ app.post('/api/place-from-url', async (req, res) => {
                 }
             }
 
-            // Pattern 3: Star symbols only "★★★★☆" without number
-            if (!ratingFromDesc && rating === 0) {
+            // Pattern 3: Star symbols only "★★★★☆" without number - ALWAYS TRY THIS
+            if (rating === 0) {
                 const starOnly = description.match(/([★☆]{3,})/);
                 if (starOnly) {
                     const stars = starOnly[1];
                     const filledStars = (stars.match(/★/g) || []).length;
                     const totalStars = stars.length;
                     rating = (filledStars / totalStars) * 5;
-                    console.log('Found rating from stars only (pattern 3):', rating);
+                    console.log('Found rating from stars only (pattern 3):', rating, 'filled:', filledStars, 'total:', totalStars);
                 }
             }
 

@@ -599,9 +599,11 @@
                 return translated.join(' · ') || types[0];
             };
 
-            const getPriceLevel = (level) => {
-                if (!level) return '';
-                return '₩'.repeat(level);
+            const getPriceLevel = (priceLevel) => {
+                // Server already formats price_level with correct currency (₩, $, ¥, €, £)
+                // based on detected language, so just return as-is
+                if (!priceLevel) return '';
+                return priceLevel;
             };
 
             const getOpeningHours = (openingHours) => {

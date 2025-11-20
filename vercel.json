@@ -1,3 +1,13 @@
 {
-  "version": 2
+  "version": 2,
+  "routes": [
+    {
+      "src": "/styles.css",
+      "dest": "/styles.css"
+    },
+    {
+      "src": "/fonts/(.*)",
+      "dest": "/fonts/$1"
+    }
+  ]
 }

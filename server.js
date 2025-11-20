@@ -412,7 +412,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri'
+                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.directionsUri,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours'
                     },
                     timeout: 10000
                 });
@@ -439,7 +439,16 @@ app.post('/api/place-from-url', async (req, res) => {
                         types: place.types,
                         formatted_address: place.formattedAddress,
                         formatted_phone_number: place.internationalPhoneNumber,
-                        website: place.websiteUri
+                        national_phone_number: place.nationalPhoneNumber,
+                        website: place.websiteUri,
+                        // Action buttons data
+                        google_maps_uri: place.googleMapsUri,
+                        directions_uri: place.directionsUri,
+                        reservable: place.reservable,
+                        delivery: place.delivery,
+                        takeout: place.takeout,
+                        dine_in: place.dineIn,
+                        opening_hours: place.currentOpeningHours
                     };
                 } else {
                     console.log('Text Search returned no results');
@@ -552,10 +561,19 @@ app.post('/api/place-from-url', async (req, res) => {
             price_level: priceLevel, // Price range (₩₩, $$, ¥1~1,000, etc.)
             business_status: businessStatus, // 폐업함, 영업 중, etc.
             phone_number: phoneNumber, // Phone number if available
+            national_phone_number: apiData?.national_phone_number, // National format phone
             website: website, // Website URL if available
             formatted_address: address,
             types: category ? [category.toLowerCase().replace(/\s+/g, '_')] : [],
-            photos: image ? [{ photo_reference: image }] : []
+            photos: image ? [{ photo_reference: image }] : [],
+            // Action buttons
+            google_maps_uri: apiData?.google_maps_uri,
+            directions_uri: apiData?.directions_uri,
+            reservable: apiData?.reservable,
+            delivery: apiData?.delivery,
+            takeout: apiData?.takeout,
+            dine_in: apiData?.dine_in,
+            opening_hours: apiData?.opening_hours
         };
 
         console.log('Extracted place data:', placeData);

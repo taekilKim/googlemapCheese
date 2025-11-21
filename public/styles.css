@@ -392,7 +392,7 @@ button:disabled {
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
-    border-radius: 50%;
+    border-radius: 20px;
     font-family: inherit;
     line-height: 24px;
     width: fit-content;

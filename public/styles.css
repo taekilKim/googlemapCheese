@@ -372,11 +372,6 @@ button#downloadBtn:disabled {
     color: #d93025;
 }
 
-.business-status::before {
-    content: '·';
-    margin-right: 4px;
-}
-
 .info-section {
     margin-bottom: 16px;
 }
@@ -427,7 +422,7 @@ button#downloadBtn:disabled {
     cursor: default;
     font-size: 14px;
     font-weight: 500;
-    border-radius: 20px;
+    border-radius: 32px;
     font-family: inherit;
     line-height: 24px;
     width: fit-content;

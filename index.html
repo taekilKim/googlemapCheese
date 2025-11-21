@@ -299,13 +299,18 @@
             let closingText = '';
 
             // Determine business status
+            // Reset classes first
+            businessStatusElement.classList.remove('status-open', 'status-closed');
+
             if (place.opening_hours && place.opening_hours.openNow !== undefined) {
                 statusText = place.opening_hours.openNow ? '영업 중' : '영업 종료';
+                // Add class based on status
+                businessStatusElement.classList.add(place.opening_hours.openNow ? 'status-open' : 'status-closed');
             } else if (place.business_status) {
                 // Fallback to business_status if openNow not available
                 statusText = place.business_status;
                 if (place.business_status.includes('폐업') || place.business_status.includes('closed')) {
-                    businessStatusElement.classList.add('closed');
+                    businessStatusElement.classList.add('status-closed');
                 }
             }
 
@@ -477,6 +482,8 @@
                 'restaurant': '음식점',
                 'cafe': '카페',
                 'bar': '술집',
+                'comedy_club': '코미디클럽',
+                'night_club': '나이트클럽',
                 'store': '상점',
                 'shopping_mall': '쇼핑몰',
                 'park': '공원',

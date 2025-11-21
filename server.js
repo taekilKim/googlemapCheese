@@ -657,6 +657,44 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('  Display Name:', place.displayName);
                     console.log('  Rating:', place.rating);
                     console.log('  User Rating Count:', place.userRatingCount);
+
+                    // If rating/reviews are missing from Text Search, try Place Details with the Place ID
+                    if ((place.rating === undefined || place.userRatingCount === undefined) && place.id) {
+                        console.log('⚠ Text Search missing rating/reviews, trying Place Details API with Place ID...');
+                        try {
+                            const detailsUrl = `https://places.googleapis.com/v1/places/${place.id}`;
+                            const detailsResponse = await axios.get(detailsUrl, {
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-Goog-Api-Key': apiKey,
+                                    'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                                },
+                                timeout: 10000
+                            });
+
+                            const detailsPlace = detailsResponse.data;
+                            console.log('✓ Place Details API success!');
+                            console.log('  Details Rating:', detailsPlace.rating);
+                            console.log('  Details User Rating Count:', detailsPlace.userRatingCount);
+
+                            // Merge Place Details data into Text Search result
+                            if (detailsPlace.rating !== undefined) place.rating = detailsPlace.rating;
+                            if (detailsPlace.userRatingCount !== undefined) place.userRatingCount = detailsPlace.userRatingCount;
+                            if (detailsPlace.priceRange) place.priceRange = detailsPlace.priceRange;
+                            if (detailsPlace.priceLevel) place.priceLevel = detailsPlace.priceLevel;
+                            if (detailsPlace.businessStatus) place.businessStatus = detailsPlace.businessStatus;
+                            if (detailsPlace.currentOpeningHours) place.currentOpeningHours = detailsPlace.currentOpeningHours;
+                            if (detailsPlace.delivery !== undefined) place.delivery = detailsPlace.delivery;
+                            if (detailsPlace.takeout !== undefined) place.takeout = detailsPlace.takeout;
+                            if (detailsPlace.dineIn !== undefined) place.dineIn = detailsPlace.dineIn;
+                            if (detailsPlace.reservable !== undefined) place.reservable = detailsPlace.reservable;
+
+                            console.log('  Merged rating:', place.rating, 'reviews:', place.userRatingCount);
+                        } catch (detailsError) {
+                            console.log('⚠ Place Details fallback failed:', detailsError.message);
+                        }
+                    }
+
                     console.log('  Price Range:', place.priceRange);
                     console.log('  Price Level:', place.priceLevel);
                     console.log('  Business Status:', place.businessStatus);

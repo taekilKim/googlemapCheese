@@ -387,7 +387,7 @@ button:disabled {
     justify-content: center;
     gap: 8px;
     padding: 8px 16px 8px 12px;
-    background: none;
+    background: #D2F7FE;
     border: none;
     cursor: pointer;
     font-size: 14px;

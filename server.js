@@ -360,6 +360,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
             if (!coordinates) {
                 console.log('⚠ Could not extract valid coordinates from HTML after trying all methods');
+                console.log('  Will attempt Text Search API without location bias (less accurate but still works)');
             }
         }
 
@@ -542,8 +543,9 @@ app.post('/api/place-from-url', async (req, res) => {
         let apiData = null;
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-        // Strategy 1: If we have Place ID (ChIJ... or ludocid), use Place Details API directly (NO COORDINATES NEEDED!)
-        if (apiKey && placeId && (placeId.startsWith('ChIJ') || /^\d+$/.test(placeId))) {
+        // Strategy 1: If we have Place ID in ChIJ format, use Place Details API directly (NO COORDINATES NEEDED!)
+        // NOTE: ludocid (numeric IDs) are NOT valid Place IDs for the API - only ChIJ format works
+        if (apiKey && placeId && placeId.startsWith('ChIJ')) {
             console.log('Attempting Places API (New) v1 with Place Details...');
             console.log('Using Place ID:', placeId);
             try {
@@ -603,17 +605,25 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        // Strategy 2: If we have coordinates, use Text Search API
-        if (!apiData && apiKey && coordinates && primaryName) {
+        // Strategy 2: Use Text Search API (works with or without coordinates)
+        // For ftid URLs without coordinates, we can still search by name + address
+        if (!apiData && apiKey && primaryName) {
             console.log('Attempting Places API (New) v1 with Text Search...');
             try {
                 // Use Text Search API to find place and get all details in one call
                 console.log('Searching for place with Text Search API...');
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
 
+                // Build request body - include location bias only if coordinates available
                 const requestBody = {
-                    textQuery: primaryName,
-                    locationBias: {
+                    textQuery: address ? `${primaryName} ${address}` : primaryName,
+                    languageCode: detectedLang,
+                    maxResultCount: 1
+                };
+
+                // Add location bias if coordinates are available (improves accuracy)
+                if (coordinates) {
+                    requestBody.locationBias = {
                         circle: {
                             center: {
                                 latitude: coordinates.lat,
@@ -621,10 +631,11 @@ app.post('/api/place-from-url', async (req, res) => {
                             },
                             radius: 500.0  // 500 meters radius
                         }
-                    },
-                    languageCode: detectedLang,
-                    maxResultCount: 1
-                };
+                    };
+                    console.log('Using location bias with coordinates:', coordinates);
+                } else {
+                    console.log('No coordinates available, searching by name and address only');
+                }
 
                 console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
@@ -688,9 +699,8 @@ app.post('/api/place-from-url', async (req, res) => {
                 console.log('Falling back to HTML parsing...');
             }
         } else {
-            if (!process.env.GOOGLE_MAPS_API_KEY) console.log('No API key configured');
-            if (!coordinates) console.log('No coordinates extracted from URL');
-            if (!primaryName) console.log('No place name extracted');
+            if (!process.env.GOOGLE_MAPS_API_KEY) console.log('No API key configured - skipping Places API');
+            if (!primaryName) console.log('No place name extracted - skipping Places API');
         }
 
         // Priority: API priceRange > HTML parsing > API priceLevel

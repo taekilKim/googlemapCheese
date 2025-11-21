@@ -120,7 +120,6 @@ button {
     font-family: inherit;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15);
 }
 
 button:hover {
@@ -206,7 +205,7 @@ button:disabled {
 
 .header-right-buttons {
     display: flex;
-    gap: 8px;
+    gap: 16px;
 }
 
 .header-icon-btn {
@@ -221,14 +220,6 @@ button:disabled {
     justify-content: center;
     padding: 0;
     transition: background 0.2s;
-}
-
-.header-icon-btn:hover {
-    background: rgba(0, 0, 0, 0.65);
-}
-
-.header-icon-btn:active {
-    background: rgba(0, 0, 0, 0.8);
 }
 
 .header-icon-btn img {
@@ -381,7 +372,6 @@ button:disabled {
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     padding-top: 16px;
-    border-top: 1px solid #e8eaed;
     margin-top: 8px;
 }
 
@@ -401,14 +391,6 @@ button:disabled {
     transition: background 0.2s;
     border-radius: 4px;
     font-family: inherit;
-}
-
-.action-btn:hover {
-    background: #f1f3f4;
-}
-
-.action-btn:active {
-    background: #e8eaed;
 }
 
 .action-icon {

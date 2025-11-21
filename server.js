@@ -789,7 +789,20 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        console.log('Final rating:', rating, 'Final reviews:', reviewCount);
+        console.log('========================================');
+        console.log('FINAL VALUES BEFORE SENDING TO CLIENT:');
+        console.log('  Rating:', rating);
+        console.log('  Review Count:', reviewCount);
+        console.log('  Primary Name:', primaryName);
+        console.log('  Category:', category);
+        console.log('  Price Level:', priceLevel);
+        console.log('  Business Status:', businessStatus);
+        console.log('  Has API Data:', !!apiData);
+        if (apiData) {
+            console.log('  API Rating:', apiData.rating);
+            console.log('  API Review Count:', apiData.user_ratings_total);
+        }
+        console.log('========================================');
 
         // Fallback for missing API data
         // ONLY use fallback if API completely failed (apiData is null)

@@ -376,21 +376,28 @@ button:disabled {
 }
 
 .action-btn {
-    display: flex;
-    flex-direction: column;
+    display: inline-block;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 12px 8px;
+    padding: 8px 16px 8px 12px;
     background: none;
     border: none;
     cursor: pointer;
-    color: #1a73e8;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     transition: background 0.2s;
-    border-radius: 4px;
+    border-radius: 50%;
     font-family: inherit;
+    line-height: 24px;
+    width: fit-content;
+}
+.action-btn img {
+    display:flex;
+}
+.action-btn.main {
+    background:#007A8A;
 }
 
 .action-icon {

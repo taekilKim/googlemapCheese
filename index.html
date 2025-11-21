@@ -309,25 +309,31 @@
                 }
             }
 
-            // Extract closing time from opening_hours if available
-            if (place.opening_hours && place.opening_hours.weekdayDescriptions) {
-                const today = new Date();
-                const dayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-                const todayHours = place.opening_hours.weekdayDescriptions[dayIndex];
+            // Extract opening/closing time from opening_hours if available
+            // Use nextOpenTime and nextCloseTime from Places API (New) v1
+            if (place.opening_hours) {
+                const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-                if (todayHours) {
-                    // Parse closing time from weekday description
-                    // Format examples:
-                    // "Monday: 9:00 AM – 6:00 PM"
-                    // "월요일: 오전 9:00 ~ 오후 6:00"
-                    const timeMatch = todayHours.match(/[–~-]\s*(.+)$/);
-                    if (timeMatch) {
-                        const closingTime = timeMatch[1].trim();
-                        // Get day name
-                        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-                        const dayName = dayNames[dayIndex];
-                        closingText = ` · ${dayName} ${closingTime}에 영업 종료`;
-                    }
+                if (place.opening_hours.openNow && place.opening_hours.nextCloseTime) {
+                    // Currently open - show next closing time
+                    const closeDate = new Date(place.opening_hours.nextCloseTime);
+                    const dayName = dayNames[closeDate.getDay()];
+                    const hours = closeDate.getHours();
+                    const minutes = closeDate.getMinutes();
+                    const period = hours < 12 ? 'AM' : 'PM';
+                    const displayHours = hours % 12 || 12;
+                    const displayMinutes = minutes.toString().padStart(2, '0');
+                    closingText = ` · ${dayName} ${period} ${displayHours}:${displayMinutes}에 영업 종료`;
+                } else if (!place.opening_hours.openNow && place.opening_hours.nextOpenTime) {
+                    // Currently closed - show next opening time
+                    const openDate = new Date(place.opening_hours.nextOpenTime);
+                    const dayName = dayNames[openDate.getDay()];
+                    const hours = openDate.getHours();
+                    const minutes = openDate.getMinutes();
+                    const period = hours < 12 ? 'AM' : 'PM';
+                    const displayHours = hours % 12 || 12;
+                    const displayMinutes = minutes.toString().padStart(2, '0');
+                    closingText = ` · ${dayName} ${period} ${displayHours}:${displayMinutes}에 영업 시작`;
                 }
             }
 

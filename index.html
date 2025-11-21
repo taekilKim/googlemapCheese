@@ -547,10 +547,10 @@
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `google-maps-photo-${Date.now()}.png`;
+                    a.download = `google-maps-photo-${Date.now()}.jpg`;
                     a.click();
                     URL.revokeObjectURL(url);
-                });
+                }, 'image/jpeg', 0.95);
             } catch (error) {
                 console.error('Download error:', error);
                 showError('이미지 저장 중 오류가 발생했습니다.');

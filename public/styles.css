@@ -381,7 +381,7 @@ button:disabled {
 }
 
 .action-btn {
-    display: inline-block;
+    display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: center;
@@ -392,7 +392,6 @@ button:disabled {
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
-    transition: background 0.2s;
     border-radius: 50%;
     font-family: inherit;
     line-height: 24px;
@@ -404,7 +403,10 @@ button:disabled {
 .action-btn.main {
     background:#007A8A;
 }
-
+.action-btn:hover{
+    background:initial;
+    box-shadow:none;
+}
 .action-icon {
     color: #1a73e8;
     font-size: 24px;

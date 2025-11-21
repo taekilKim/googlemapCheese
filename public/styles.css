@@ -324,11 +324,6 @@ button:disabled {
     margin-left: 4px;
 }
 
-.price-level::before {
-    content: '·';
-    margin-right: 4px;
-}
-
 .business-status {
     font-size: 14px;
     color: #5f6368;
@@ -401,7 +396,7 @@ button:disabled {
     width: fit-content;
     color: #004E5D;
     letter-spacing:0;
-    
+
 }
 .action-btn img {
     display: inline-block;

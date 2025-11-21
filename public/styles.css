@@ -287,7 +287,8 @@ button#downloadBtn:disabled {
     width: 32px;
     height: 32px;
     border: none;
-    background: none;
+    background: #f2f2f2;
+    border-radius:50%;
     cursor: default;
     display: flex;
     align-items: center;

@@ -396,12 +396,14 @@ button:disabled {
     font-family: inherit;
     line-height: 24px;
     width: fit-content;
+    color:#004E5D;
 }
 .action-btn img {
     display:flex;
 }
 .action-btn.main {
     background:#007A8A;
+    color:#fff;
 }
 .action-btn:hover{
     background:initial;

@@ -477,19 +477,25 @@ app.post('/api/place-from-url', async (req, res) => {
         if (rating === 0 || reviewCount === 0) {
             console.log('Rating/reviews not found in description, searching HTML content...');
 
-            // Pattern 1: ["4.1",123] or ["3.7",649]
+            // Pattern 1: ["4.1",123] or ["3.7",649] or ["4.4",6692]
             const pattern1 = /\["([\d.]+)",(\d+)\]/g;
             let matches1;
+            const allMatches = [];
             while ((matches1 = pattern1.exec(htmlContent)) !== null) {
                 const possibleRating = parseFloat(matches1[1]);
                 const possibleReviews = parseInt(matches1[2]);
 
                 if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0 && possibleReviews < 10000000) {
-                    if (rating === 0) rating = possibleRating;
-                    if (reviewCount === 0) reviewCount = possibleReviews;
-                    console.log('Found from pattern 1:', rating, 'Reviews:', reviewCount);
-                    break;
+                    allMatches.push({ rating: possibleRating, reviews: possibleReviews });
                 }
+            }
+
+            // Use the match with highest review count (most likely to be the main rating)
+            if (allMatches.length > 0) {
+                const bestMatch = allMatches.reduce((max, curr) => curr.reviews > max.reviews ? curr : max);
+                if (rating === 0) rating = bestMatch.rating;
+                if (reviewCount === 0) reviewCount = bestMatch.reviews;
+                console.log('Found from pattern 1 (best match):', rating, 'Reviews:', reviewCount);
             }
         }
 
@@ -517,7 +523,24 @@ app.post('/api/place-from-url', async (req, res) => {
         }
 
         if (rating === 0 || reviewCount === 0) {
-            // Pattern 3: More aggressive number search near rating keywords
+            // Pattern 3: JSON array format [null,null,"4.4",6692]
+            const pattern3 = /\[null,null,"([\d.]+)",(\d+)\]/g;
+            let matches3;
+            while ((matches3 = pattern3.exec(htmlContent)) !== null) {
+                const possibleRating = parseFloat(matches3[1]);
+                const possibleReviews = parseInt(matches3[2]);
+
+                if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0) {
+                    if (rating === 0) rating = possibleRating;
+                    if (reviewCount === 0) reviewCount = possibleReviews;
+                    console.log('Found from pattern 3 (null array):', rating, 'Reviews:', reviewCount);
+                    break;
+                }
+            }
+        }
+
+        if (rating === 0 || reviewCount === 0) {
+            // Pattern 4: More aggressive number search near rating keywords
             const ratingKeywords = /([\d.]+)\s*(?:별|stars?|rating)/i;
             const ratingMatch = htmlContent.match(ratingKeywords);
             if (ratingMatch) {
@@ -535,6 +558,36 @@ app.post('/api/place-from-url', async (req, res) => {
                 if (possibleReviews > 0 && possibleReviews < 10000000 && reviewCount === 0) {
                     reviewCount = possibleReviews;
                     console.log('Found reviews from keywords:', reviewCount);
+                }
+            }
+        }
+
+        if (rating === 0 || reviewCount === 0) {
+            // Pattern 5: Search for rating and review count separately in data arrays
+            // Look for rating in format: ,"4.4", or [4.4] or "rating":4.4
+            if (rating === 0) {
+                const ratingPatterns = [
+                    /"([\d.]+)"/g,  // Any quoted decimal number
+                    /\[([\d.]+)\]/g  // Number in brackets
+                ];
+
+                for (const pattern of ratingPatterns) {
+                    const matches = [...htmlContent.matchAll(pattern)];
+                    for (const match of matches) {
+                        const num = parseFloat(match[1]);
+                        if (num >= 1 && num <= 5) {
+                            // Check if there's a large number nearby (review count)
+                            const context = htmlContent.substring(match.index - 50, match.index + 100);
+                            const nearbyNumber = context.match(/(\d{3,})/);
+                            if (nearbyNumber && parseInt(nearbyNumber[1]) > 100) {
+                                rating = num;
+                                if (reviewCount === 0) reviewCount = parseInt(nearbyNumber[1]);
+                                console.log('Found from pattern 5 (context search):', rating, 'Reviews:', reviewCount);
+                                break;
+                            }
+                        }
+                    }
+                    if (rating > 0) break;
                 }
             }
         }

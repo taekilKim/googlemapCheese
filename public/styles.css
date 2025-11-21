@@ -252,7 +252,12 @@ button:disabled {
     padding: 20px 20px;
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
 }
-
+.bar {
+    position:absolute;
+    top:8px;
+    width:40px;
+    margin:0 auto;
+}
 .place-name {
     font-size: 22px;
     font-weight: 400;

@@ -185,30 +185,54 @@ button:disabled {
     overflow: hidden;
 }
 
-.preview-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 32px 20px;
-    text-align: center;
-}
-
-.preview-header h1 {
-    color: white;
-    font-size: 24px;
-    font-weight: 400;
-    margin-bottom: 8px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.preview-subtitle {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    font-weight: 400;
-}
-
 .phone-preview {
     position: relative;
     width: 100%;
     background: white;
+}
+
+/* Mobile Header (overlays on photo) */
+.mobile-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 11px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+}
+
+.header-right-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.header-icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 0.2s;
+}
+
+.header-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.65);
+}
+
+.header-icon-btn:active {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.header-icon-btn img {
+    display: block;
 }
 
 .photo-container {
@@ -451,18 +475,6 @@ button:disabled {
     }
 
     .subtitle {
-        font-size: 13px;
-    }
-
-    .preview-header {
-        padding: 24px 16px;
-    }
-
-    .preview-header h1 {
-        font-size: 20px;
-    }
-
-    .preview-subtitle {
         font-size: 13px;
     }
 

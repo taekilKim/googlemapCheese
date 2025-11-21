@@ -216,7 +216,7 @@ button:disabled {
     margin-top: -28px;
     background: white;
     border-radius: 28px 28px 0 0;
-    padding: 22px 20px;
+    padding: 20px 20px;
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
 }
 
@@ -238,7 +238,7 @@ button:disabled {
 }
 
 .category {
-    font-size: 14px;
+    font-size: 13px;
     color: #5f6368;
     margin-bottom: 12px;
     font-weight: 400;
@@ -247,8 +247,8 @@ button:disabled {
 .rating-section {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 4px;
+    margin-bottom: 4px;
 }
 
 .rating-number {
@@ -259,7 +259,6 @@ button:disabled {
 
 .stars {
     display: flex;
-    gap: 2px;
     align-items: center;
 }
 

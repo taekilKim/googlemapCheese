@@ -252,22 +252,42 @@ button:disabled {
     padding: 20px 20px;
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
 }
-.bar {
-    position: absolute;
-    top: 8px;
-    width: 40px;
-    margin: 0 auto;
-    background: #C8C8C8;
-    height: 3px;
-    left: calc(50% - 20px);
-    border-radius: 2px;
+
+.place-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
 }
+
+.place-header-actions {
+    display: flex;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.place-action-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.place-action-btn img {
+    display: block;
+}
+
 .place-name {
     font-size: 22px;
     font-weight: 400;
     color: #202124;
     line-height: 28px;
-    margin-bottom: 4px;
     letter-spacing: 0;
 }
 

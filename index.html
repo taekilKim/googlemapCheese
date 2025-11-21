@@ -75,12 +75,21 @@
                         </div>
                     </div>
                     <div class="maps-card">
-                        <div class="bar"></div>
-                        <!-- 1. 장소 이름 -->
-                        <div>
-                            <div class="place-name" id="placeName">장소 이름</div>
-                            <!-- 2. 장소 세컨드이름 -->
-                            <div class="place-name-secondary" id="placeNameSecondary" style="display: none;"></div>
+                        <!-- 1. 장소 이름 with action buttons -->
+                        <div class="place-header">
+                            <div>
+                                <div class="place-name" id="placeName">장소 이름</div>
+                                <!-- 2. 장소 세컨드이름 -->
+                                <div class="place-name-secondary" id="placeNameSecondary" style="display: none;"></div>
+                            </div>
+                            <div class="place-header-actions">
+                                <button class="place-action-btn">
+                                    <img src="/images/share_black.svg" alt="Share" width="24" height="24">
+                                </button>
+                                <button class="place-action-btn">
+                                    <img src="/images/close.svg" alt="Close" width="24" height="24">
+                                </button>
+                            </div>
                         </div>
 
                         <!-- 3. 별점 별갯수(리뷰 수) -->
@@ -285,31 +294,54 @@
             const businessStatusElement = document.getElementById('businessStatus');
             const closingTimeElement = document.getElementById('closingTime');
 
-            if (place.business_status) {
-                businessStatusElement.textContent = place.business_status;
-                businessStatusElement.className = 'business-status';
+            // Show business status and closing time
+            let statusText = '';
+            let closingText = '';
+
+            // Determine business status
+            if (place.opening_hours && place.opening_hours.openNow !== undefined) {
+                statusText = place.opening_hours.openNow ? '영업 중' : '영업 종료';
+            } else if (place.business_status) {
+                // Fallback to business_status if openNow not available
+                statusText = place.business_status;
                 if (place.business_status.includes('폐업') || place.business_status.includes('closed')) {
                     businessStatusElement.classList.add('closed');
                 }
+            }
+
+            // Extract closing time from opening_hours if available
+            if (place.opening_hours && place.opening_hours.weekdayDescriptions) {
+                const today = new Date();
+                const dayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+                const todayHours = place.opening_hours.weekdayDescriptions[dayIndex];
+
+                if (todayHours) {
+                    // Parse closing time from weekday description
+                    // Format examples:
+                    // "Monday: 9:00 AM – 6:00 PM"
+                    // "월요일: 오전 9:00 ~ 오후 6:00"
+                    const timeMatch = todayHours.match(/[–~-]\s*(.+)$/);
+                    if (timeMatch) {
+                        const closingTime = timeMatch[1].trim();
+                        // Get day name
+                        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                        const dayName = dayNames[dayIndex];
+                        closingText = ` · ${dayName} ${closingTime}에 영업 종료`;
+                    }
+                }
+            }
+
+            // Display status and closing time
+            if (statusText) {
+                businessStatusElement.textContent = statusText;
                 businessStatusElement.style.display = 'inline';
             } else {
                 businessStatusElement.style.display = 'none';
             }
 
-            // Extract closing time from opening_hours if available
-            if (place.opening_hours && place.opening_hours.weekday_text) {
-                const today = new Date().getDay();
-                const dayIndex = today === 0 ? 6 : today - 1; // Convert to Monday=0 format
-                const todayHours = place.opening_hours.weekday_text[dayIndex];
-
-                if (todayHours) {
-                    // Extract closing time (e.g., "오후 9:00" from "월요일: 오전 11:00~오후 9:00")
-                    const timeMatch = todayHours.match(/~([^~]+)$/);
-                    if (timeMatch) {
-                        closingTimeElement.textContent = ' · ' + timeMatch[1].trim() + ' 영업 종료';
-                        closingTimeElement.style.display = 'inline';
-                    }
-                }
+            if (closingText) {
+                closingTimeElement.textContent = closingText;
+                closingTimeElement.style.display = 'inline';
             } else {
                 closingTimeElement.style.display = 'none';
             }

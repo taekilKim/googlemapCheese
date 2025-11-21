@@ -730,6 +730,104 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('Mapped apiData:', JSON.stringify(apiData, null, 2));
                 } else {
                     console.log('Text Search returned no results');
+
+                    // Retry with secondary name (local language name) if available
+                    if (secondaryName && secondaryName !== primaryName) {
+                        console.log('Retrying Text Search with secondary name:', secondaryName);
+                        try {
+                            const retryRequestBody = {
+                                textQuery: address ? `${secondaryName} ${address}` : secondaryName,
+                                languageCode: detectedLang,
+                                maxResultCount: 1
+                            };
+
+                            if (coordinates) {
+                                retryRequestBody.locationBias = {
+                                    circle: {
+                                        center: {
+                                            latitude: coordinates.lat,
+                                            longitude: coordinates.lng
+                                        },
+                                        radius: 500.0
+                                    }
+                                };
+                            }
+
+                            console.log('Retry request body:', JSON.stringify(retryRequestBody, null, 2));
+
+                            const retryResponse = await axios.post(searchUrl, retryRequestBody, {
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-Goog-Api-Key': apiKey,
+                                    'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.googleMapsLinks,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours.openNow,places.currentOpeningHours.nextOpenTime,places.currentOpeningHours.nextCloseTime'
+                                },
+                                timeout: 10000
+                            });
+
+                            if (retryResponse.data.places && retryResponse.data.places.length > 0) {
+                                console.log('✓ Retry successful with secondary name!');
+                                const place = retryResponse.data.places[0];
+
+                                // Check for missing rating/reviews and call Place Details if needed
+                                if ((place.rating === undefined || place.userRatingCount === undefined) && place.id) {
+                                    console.log('⚠ Retry result missing rating/reviews, trying Place Details API...');
+                                    try {
+                                        const detailsUrl = `https://places.googleapis.com/v1/places/${place.id}`;
+                                        const detailsResponse = await axios.get(detailsUrl, {
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'X-Goog-Api-Key': apiKey,
+                                                'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                                            },
+                                            timeout: 10000
+                                        });
+
+                                        const detailsPlace = detailsResponse.data;
+                                        console.log('✓ Place Details API success after retry!');
+                                        console.log('  Details Rating:', detailsPlace.rating);
+                                        console.log('  Details User Rating Count:', detailsPlace.userRatingCount);
+
+                                        // Merge details
+                                        if (detailsPlace.rating !== undefined) place.rating = detailsPlace.rating;
+                                        if (detailsPlace.userRatingCount !== undefined) place.userRatingCount = detailsPlace.userRatingCount;
+                                        if (detailsPlace.priceRange) place.priceRange = detailsPlace.priceRange;
+                                        if (detailsPlace.priceLevel) place.priceLevel = detailsPlace.priceLevel;
+                                        if (detailsPlace.businessStatus) place.businessStatus = detailsPlace.businessStatus;
+                                        if (detailsPlace.currentOpeningHours) place.currentOpeningHours = detailsPlace.currentOpeningHours;
+                                    } catch (detailsError) {
+                                        console.log('⚠ Place Details after retry failed:', detailsError.message);
+                                    }
+                                }
+
+                                // Map the retry result
+                                apiData = {
+                                    name: place.displayName?.text || place.displayName,
+                                    rating: place.rating,
+                                    user_ratings_total: place.userRatingCount,
+                                    price_range: place.priceRange,
+                                    price_level: place.priceLevel,
+                                    business_status: place.businessStatus,
+                                    types: place.types,
+                                    formatted_phone_number: place.internationalPhoneNumber,
+                                    national_phone_number: place.nationalPhoneNumber,
+                                    website: place.websiteUri,
+                                    google_maps_uri: place.googleMapsUri || place.googleMapsLinks?.placeUri,
+                                    directions_uri: place.googleMapsLinks?.directionsUri,
+                                    reservable: place.reservable,
+                                    delivery: place.delivery,
+                                    takeout: place.takeout,
+                                    dine_in: place.dineIn,
+                                    opening_hours: place.currentOpeningHours
+                                };
+
+                                console.log('Mapped apiData from retry:', JSON.stringify(apiData, null, 2));
+                            } else {
+                                console.log('Retry with secondary name also returned no results');
+                            }
+                        } catch (retryError) {
+                            console.log('Retry with secondary name failed:', retryError.message);
+                        }
+                    }
                 }
             } catch (error) {
                 console.log('Places API (New) error:', error.message);

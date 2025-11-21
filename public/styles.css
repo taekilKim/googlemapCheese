@@ -253,10 +253,14 @@ button:disabled {
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
 }
 .bar {
-    position:absolute;
-    top:8px;
-    width:40px;
-    margin:0 auto;
+    position: absolute;
+    top: 8px;
+    width: 40px;
+    margin: 0 auto;
+    background: #C8C8C8;
+    height: 3px;
+    left: calc(50% - 20px);
+    border-radius: 2px;
 }
 .place-name {
     font-size: 22px;

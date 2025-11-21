@@ -784,6 +784,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
                                         const detailsPlace = detailsResponse.data;
                                         console.log('✓ Place Details API success after retry!');
+                                        console.log('  Full Place Details response:', JSON.stringify(detailsPlace, null, 2));
                                         console.log('  Details Rating:', detailsPlace.rating);
                                         console.log('  Details User Rating Count:', detailsPlace.userRatingCount);
 

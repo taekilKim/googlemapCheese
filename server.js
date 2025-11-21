@@ -555,7 +555,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours'
+                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.weekdayDescriptions'
                     },
                     timeout: 10000
                 });
@@ -643,7 +643,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.googleMapsLinks,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours'
+                        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.googleMapsLinks,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours.openNow,places.currentOpeningHours.weekdayDescriptions'
                     },
                     timeout: 10000
                 });

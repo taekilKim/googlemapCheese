@@ -400,6 +400,8 @@ button:disabled {
     line-height: 24px;
     width: fit-content;
     color: #004E5D;
+    letter-spacing:0;
+    
 }
 .action-btn img {
     display: inline-block;

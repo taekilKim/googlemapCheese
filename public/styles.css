@@ -318,7 +318,7 @@ button#downloadBtn:disabled {
 }
 
 .category {
-    font-size: 13px;
+    font-size: 14px;
     color: #5f6368;
     margin-bottom: 12px;
     font-weight: 400;
@@ -361,16 +361,21 @@ button#downloadBtn:disabled {
     font-weight: 400;
     margin-left: 4px;
 }
-
+.business-hours-section{
+    font-size:14px;
+    color:#5f6368;
+    font-weight:400;
+}
 .business-status {
     font-size: 14px;
     color: #5f6368;
     font-weight: 400;
-    margin-left: 4px;
 }
-
-.business-status.closed {
-    color: #d93025;
+.business-status.status-open {
+    color:#198639
+}
+.business-status.status-closed {
+    color: #dc362e;
 }
 
 .info-section {

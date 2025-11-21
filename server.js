@@ -562,6 +562,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
                 const place = detailsResponse.data;
                 console.log('✓ Places API Place Details success!');
+                console.log('  Full API response:', JSON.stringify(place, null, 2));
                 console.log('  Rating:', place.rating);
                 console.log('  User Rating Count:', place.userRatingCount);
                 console.log('  Price Range:', place.priceRange);
@@ -651,6 +652,7 @@ app.post('/api/place-from-url', async (req, res) => {
                 if (searchResponse.data.places && searchResponse.data.places.length > 0) {
                     const place = searchResponse.data.places[0];
                     console.log('✓ Places API (New) success!');
+                    console.log('  Full API response:', JSON.stringify(place, null, 2));
                     console.log('  Place ID:', place.id);
                     console.log('  Display Name:', place.displayName);
                     console.log('  Rating:', place.rating);
@@ -787,7 +789,20 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         }
 
-        console.log('Final rating:', rating, 'Final reviews:', reviewCount);
+        console.log('========================================');
+        console.log('FINAL VALUES BEFORE SENDING TO CLIENT:');
+        console.log('  Rating:', rating);
+        console.log('  Review Count:', reviewCount);
+        console.log('  Primary Name:', primaryName);
+        console.log('  Category:', category);
+        console.log('  Price Level:', priceLevel);
+        console.log('  Business Status:', businessStatus);
+        console.log('  Has API Data:', !!apiData);
+        if (apiData) {
+            console.log('  API Rating:', apiData.rating);
+            console.log('  API Review Count:', apiData.user_ratings_total);
+        }
+        console.log('========================================');
 
         // Fallback for missing API data
         // ONLY use fallback if API completely failed (apiData is null)

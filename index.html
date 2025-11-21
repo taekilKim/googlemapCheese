@@ -317,7 +317,7 @@
             updateActionButtons(place);
         }
 
-        // Update action buttons based on available data (matches Google Maps UI)
+        // Update action buttons - Fixed order: 경로, 통화, 저장, 예약
         function updateActionButtons(place) {
             const buttonsContainer = document.querySelector('.action-buttons');
             if (!buttonsContainer) return;
@@ -325,41 +325,30 @@
             // Clear existing buttons
             buttonsContainer.innerHTML = '';
 
-            // Google Maps standard button order: 경로, 주문, 통화, 저장
-            // Only show buttons that are available for this specific place
+            // Fixed button order (always show all 4 buttons)
 
-            // 1. 경로 (Directions) - always show if we have any URI
-            if (place.directions_uri || place.google_maps_uri) {
-                const directionsBtn = createActionButton(
-                    'directions',
-                    '경로',
-                    place.directions_uri || (place.google_maps_uri ? place.google_maps_uri + '/directions' : '#')
-                );
-                buttonsContainer.appendChild(directionsBtn);
-            }
+            // 1. 경로 (Directions)
+            const directionsBtn = createActionButton(
+                'directions',
+                '경로',
+                place.directions_uri || (place.google_maps_uri ? place.google_maps_uri + '/directions' : '#')
+            );
+            buttonsContainer.appendChild(directionsBtn);
 
-            // 2. 주문 (Order) - show only if delivery or takeout is available
-            if (place.delivery || place.takeout) {
-                const orderBtn = createActionButton(
-                    'shopping_bag',
-                    '주문',
-                    place.google_maps_uri || '#'
-                );
-                buttonsContainer.appendChild(orderBtn);
-            }
-
-            // 3. 통화 (Call) - show only if phone number available
+            // 2. 통화 (Call)
+            let callHref = '#';
             if (place.phone_number || place.national_phone_number) {
                 const phoneNumber = place.national_phone_number || place.phone_number;
-                const callBtn = createActionButton(
-                    'phone',
-                    '통화',
-                    'tel:' + phoneNumber.replace(/[^0-9+]/g, '')
-                );
-                buttonsContainer.appendChild(callBtn);
+                callHref = 'tel:' + phoneNumber.replace(/[^0-9+]/g, '');
             }
+            const callBtn = createActionButton(
+                'phone',
+                '통화',
+                callHref
+            );
+            buttonsContainer.appendChild(callBtn);
 
-            // 4. 저장 (Save) - always show, matches Google Maps UI
+            // 3. 저장 (Save)
             const saveBtn = createActionButton(
                 'bookmark_border',
                 '저장',
@@ -375,6 +364,14 @@
                 }
             );
             buttonsContainer.appendChild(saveBtn);
+
+            // 4. 예약 (Reserve)
+            const reserveBtn = createActionButton(
+                'event',
+                '예약',
+                place.reservable ? place.google_maps_uri || '#' : '#'
+            );
+            buttonsContainer.appendChild(reserveBtn);
         }
 
         // Helper function to create action button

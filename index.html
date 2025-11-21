@@ -309,24 +309,43 @@
                 }
             }
 
-            // Extract closing time from opening_hours if available
+            // Extract opening/closing time from opening_hours if available
             if (place.opening_hours && place.opening_hours.weekdayDescriptions) {
                 const today = new Date();
                 const dayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-                const todayHours = place.opening_hours.weekdayDescriptions[dayIndex];
+                const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-                if (todayHours) {
-                    // Parse closing time from weekday description
-                    // Format examples:
-                    // "Monday: 9:00 AM – 6:00 PM"
-                    // "월요일: 오전 9:00 ~ 오후 6:00"
-                    const timeMatch = todayHours.match(/[–~-]\s*(.+)$/);
-                    if (timeMatch) {
-                        const closingTime = timeMatch[1].trim();
-                        // Get day name
-                        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-                        const dayName = dayNames[dayIndex];
-                        closingText = ` · ${dayName} ${closingTime}에 영업 종료`;
+                if (place.opening_hours.openNow) {
+                    // Currently open - show closing time
+                    const todayHours = place.opening_hours.weekdayDescriptions[dayIndex];
+                    if (todayHours) {
+                        // Parse closing time (right side of range)
+                        // Format: "월요일: 오전 9:00 ~ 오후 6:00" or "Monday: 9:00 AM – 6:00 PM"
+                        const timeMatch = todayHours.match(/[–~-]\s*(.+)$/);
+                        if (timeMatch) {
+                            const closingTime = timeMatch[1].trim();
+                            const dayName = dayNames[dayIndex];
+                            closingText = ` · ${dayName} ${closingTime}에 영업 종료`;
+                        }
+                    }
+                } else {
+                    // Currently closed - show next opening time
+                    // Search for next open day starting from tomorrow
+                    for (let i = 1; i <= 7; i++) {
+                        const nextDayIndex = (dayIndex + i) % 7;
+                        const nextDayHours = place.opening_hours.weekdayDescriptions[nextDayIndex];
+
+                        if (nextDayHours && !nextDayHours.includes('휴무') && !nextDayHours.includes('Closed')) {
+                            // Parse opening time (left side of range)
+                            // Format: "월요일: 오전 9:00 ~ 오후 6:00"
+                            const timeMatch = nextDayHours.match(/:\s*(.+?)\s*[–~-]/);
+                            if (timeMatch) {
+                                const openingTime = timeMatch[1].trim();
+                                const dayName = dayNames[nextDayIndex];
+                                closingText = ` · ${dayName} ${openingTime}에 영업 시작`;
+                                break;
+                            }
+                        }
                     }
                 }
             }

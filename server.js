@@ -472,36 +472,49 @@ app.post('/api/place-from-url', async (req, res) => {
 
         // Try to extract actual rating and review count from page data if not found in description
         // Google Maps embeds this data in JavaScript variables in various formats
+        // Search in both Korean and local language HTML (better chance in English)
         const htmlContent = koreanResponse.data;
+        const englishHtml = localResponse ? localResponse.data : null;
 
         if (rating === 0 || reviewCount === 0) {
             console.log('Rating/reviews not found in description, searching HTML content...');
 
             // Log HTML samples containing potential rating data for debugging
+            // Try English HTML first (more likely to have clean data)
+            const searchHtml = englishHtml || htmlContent;
             const ratingPattern = /4\.4/g;
             const matches = [];
             let match;
-            while ((match = ratingPattern.exec(htmlContent)) !== null && matches.length < 3) {
+            while ((match = ratingPattern.exec(searchHtml)) !== null && matches.length < 3) {
                 const start = Math.max(0, match.index - 100);
-                const end = Math.min(htmlContent.length, match.index + 100);
-                matches.push(htmlContent.substring(start, end));
+                const end = Math.min(searchHtml.length, match.index + 100);
+                matches.push(searchHtml.substring(start, end));
             }
             if (matches.length > 0) {
-                console.log('Found "4.4" in HTML, sample contexts:');
+                console.log(`Found "4.4" in ${englishHtml ? 'English' : 'Korean'} HTML, sample contexts:`);
                 matches.forEach((ctx, i) => console.log(`  Sample ${i + 1}:`, ctx));
+            } else {
+                console.log('Did not find "4.4" in HTML - trying pattern matching');
             }
 
             // Pattern 1: ["4.1",123] or ["3.7",649] or ["4.4",6692]
+            // Try English HTML first, then Korean
             const pattern1 = /\["([\d.]+)",(\d+)\]/g;
             let matches1;
             const allMatches = [];
-            while ((matches1 = pattern1.exec(htmlContent)) !== null) {
-                const possibleRating = parseFloat(matches1[1]);
-                const possibleReviews = parseInt(matches1[2]);
 
-                if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0 && possibleReviews < 10000000) {
-                    allMatches.push({ rating: possibleRating, reviews: possibleReviews });
+            const htmlsToSearch = [englishHtml, htmlContent].filter(h => h);
+            for (const html of htmlsToSearch) {
+                const pattern = /\["([\d.]+)",(\d+)\]/g;
+                while ((matches1 = pattern.exec(html)) !== null) {
+                    const possibleRating = parseFloat(matches1[1]);
+                    const possibleReviews = parseInt(matches1[2]);
+
+                    if (possibleRating >= 1 && possibleRating <= 5 && possibleReviews > 0 && possibleReviews < 10000000) {
+                        allMatches.push({ rating: possibleRating, reviews: possibleReviews, source: html === englishHtml ? 'English' : 'Korean' });
+                    }
                 }
+                if (allMatches.length > 0) break; // Found in first HTML, don't need second
             }
 
             // Use the match with highest review count (most likely to be the main rating)
@@ -510,7 +523,7 @@ app.post('/api/place-from-url', async (req, res) => {
                 const bestMatch = allMatches.reduce((max, curr) => curr.reviews > max.reviews ? curr : max);
                 if (rating === 0) rating = bestMatch.rating;
                 if (reviewCount === 0) reviewCount = bestMatch.reviews;
-                console.log('Found from pattern 1 (best match):', rating, 'Reviews:', reviewCount);
+                console.log(`Found from pattern 1 (best match from ${bestMatch.source}):`, rating, 'Reviews:', reviewCount);
             }
         }
 
@@ -579,11 +592,11 @@ app.post('/api/place-from-url', async (req, res) => {
 
         if (rating === 0 || reviewCount === 0) {
             // Pattern 5: Search for rating and review count separately in data arrays
-            // Look for rating in format: ,"4.4", or [4.4] or "rating":4.4
+            // Look for rating in format: ,"4.4", or [4.4] - must have decimal point
             if (rating === 0) {
                 const ratingPatterns = [
-                    /"([\d.]+)"/g,  // Any quoted decimal number
-                    /\[([\d.]+)\]/g  // Number in brackets
+                    /"([\d]+\.\d+)"/g,  // Quoted decimal number (must have decimal point)
+                    /\[([\d]+\.\d+)\]/g  // Number in brackets (must have decimal point)
                 ];
 
                 for (const pattern of ratingPatterns) {
@@ -591,12 +604,13 @@ app.post('/api/place-from-url', async (req, res) => {
                     for (const match of matches) {
                         const num = parseFloat(match[1]);
                         if (num >= 1 && num <= 5) {
-                            // Check if there's a large number nearby (review count)
+                            // Check if there's a realistic review count nearby (100-1,000,000)
                             const context = htmlContent.substring(match.index - 50, match.index + 100);
-                            const nearbyNumber = context.match(/(\d{3,})/);
-                            if (nearbyNumber && parseInt(nearbyNumber[1]) > 100) {
+                            const nearbyNumber = context.match(/(\d{3,7})/);  // 3-7 digits
+                            const reviewNum = nearbyNumber ? parseInt(nearbyNumber[1]) : 0;
+                            if (reviewNum >= 100 && reviewNum <= 1000000) {
                                 rating = num;
-                                if (reviewCount === 0) reviewCount = parseInt(nearbyNumber[1]);
+                                if (reviewCount === 0) reviewCount = reviewNum;
                                 console.log('Found from pattern 5 (context search):', rating, 'Reviews:', reviewCount);
                                 break;
                             }
@@ -623,7 +637,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
                     },
                     timeout: 10000
                 });
@@ -735,7 +749,7 @@ app.post('/api/place-from-url', async (req, res) => {
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'X-Goog-Api-Key': apiKey,
-                                    'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                                    'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
                                 },
                                 timeout: 10000
                             });
@@ -845,7 +859,7 @@ app.post('/api/place-from-url', async (req, res) => {
                                             headers: {
                                                 'Content-Type': 'application/json',
                                                 'X-Goog-Api-Key': apiKey,
-                                                'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                                                'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
                                             },
                                             timeout: 10000
                                         });

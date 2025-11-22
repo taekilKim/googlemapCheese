@@ -701,7 +701,7 @@ app.post('/api/place-from-url', async (req, res) => {
                 const requestBody = {
                     textQuery: address ? `${primaryName} ${address}` : primaryName,
                     languageCode: detectedLang,
-                    maxResultCount: 1
+                    maxResultCount: 5  // Get multiple results to filter for best match
                 };
 
                 // Add location bias if coordinates are available (improves accuracy)
@@ -732,7 +732,60 @@ app.post('/api/place-from-url', async (req, res) => {
                 });
 
                 if (searchResponse.data.places && searchResponse.data.places.length > 0) {
-                    const place = searchResponse.data.places[0];
+                    console.log(`✓ Text Search returned ${searchResponse.data.places.length} result(s)`);
+
+                    // Filter and rank results to find the best match
+                    // Prefer: 1) Places with ratings, 2) Establishment types over route types
+                    let place = null;
+                    const addressTypes = ['route', 'street_address', 'premise', 'subpremise'];
+
+                    // First, try to find a non-route type with rating
+                    for (const p of searchResponse.data.places) {
+                        const hasAddressType = p.types?.some(t => addressTypes.includes(t));
+                        const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
+
+                        console.log(`  Candidate: ${p.displayName?.text || p.displayName}`);
+                        console.log(`    Types: ${p.types?.join(', ') || 'none'}`);
+                        console.log(`    Is address type: ${hasAddressType}`);
+                        console.log(`    Has rating: ${hasRating} (${p.rating}/${p.userRatingCount})`);
+
+                        if (!hasAddressType && hasRating) {
+                            place = p;
+                            console.log(`  ✓ Selected: Non-route type with rating`);
+                            break;
+                        }
+                    }
+
+                    // Second, try to find any non-route type
+                    if (!place) {
+                        for (const p of searchResponse.data.places) {
+                            const hasAddressType = p.types?.some(t => addressTypes.includes(t));
+                            if (!hasAddressType) {
+                                place = p;
+                                console.log(`  ✓ Selected: Non-route type without rating`);
+                                break;
+                            }
+                        }
+                    }
+
+                    // Third, try to find any place with rating (even if route type)
+                    if (!place) {
+                        for (const p of searchResponse.data.places) {
+                            const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
+                            if (hasRating) {
+                                place = p;
+                                console.log(`  ✓ Selected: Route type with rating`);
+                                break;
+                            }
+                        }
+                    }
+
+                    // Finally, fall back to first result
+                    if (!place) {
+                        place = searchResponse.data.places[0];
+                        console.log(`  ✓ Selected: First result (fallback)`);
+                    }
+
                     console.log('✓ Places API (New) success!');
                     console.log('  Full API response:', JSON.stringify(place, null, 2));
                     console.log('  Place ID:', place.id);
@@ -820,7 +873,7 @@ app.post('/api/place-from-url', async (req, res) => {
                             const retryRequestBody = {
                                 textQuery: address ? `${secondaryName} ${address}` : secondaryName,
                                 languageCode: detectedLang,
-                                maxResultCount: 1
+                                maxResultCount: 5  // Get multiple results to filter for best match
                             };
 
                             if (coordinates) {
@@ -847,8 +900,60 @@ app.post('/api/place-from-url', async (req, res) => {
                             });
 
                             if (retryResponse.data.places && retryResponse.data.places.length > 0) {
+                                console.log(`✓ Retry returned ${retryResponse.data.places.length} result(s)`);
+
+                                // Apply same filtering logic as primary search
+                                let place = null;
+                                const addressTypes = ['route', 'street_address', 'premise', 'subpremise'];
+
+                                // First, try to find a non-route type with rating
+                                for (const p of retryResponse.data.places) {
+                                    const hasAddressType = p.types?.some(t => addressTypes.includes(t));
+                                    const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
+
+                                    console.log(`  Retry Candidate: ${p.displayName?.text || p.displayName}`);
+                                    console.log(`    Types: ${p.types?.join(', ') || 'none'}`);
+                                    console.log(`    Is address type: ${hasAddressType}`);
+                                    console.log(`    Has rating: ${hasRating} (${p.rating}/${p.userRatingCount})`);
+
+                                    if (!hasAddressType && hasRating) {
+                                        place = p;
+                                        console.log(`  ✓ Selected: Non-route type with rating`);
+                                        break;
+                                    }
+                                }
+
+                                // Second, try to find any non-route type
+                                if (!place) {
+                                    for (const p of retryResponse.data.places) {
+                                        const hasAddressType = p.types?.some(t => addressTypes.includes(t));
+                                        if (!hasAddressType) {
+                                            place = p;
+                                            console.log(`  ✓ Selected: Non-route type without rating`);
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // Third, try to find any place with rating (even if route type)
+                                if (!place) {
+                                    for (const p of retryResponse.data.places) {
+                                        const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
+                                        if (hasRating) {
+                                            place = p;
+                                            console.log(`  ✓ Selected: Route type with rating`);
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // Finally, fall back to first result
+                                if (!place) {
+                                    place = retryResponse.data.places[0];
+                                    console.log(`  ✓ Selected: First result (fallback)`);
+                                }
+
                                 console.log('✓ Retry successful with secondary name!');
-                                const place = retryResponse.data.places[0];
 
                                 // Check for missing rating/reviews and call Place Details if needed
                                 if ((place.rating === undefined || place.userRatingCount === undefined) && place.id) {

@@ -477,6 +477,20 @@ app.post('/api/place-from-url', async (req, res) => {
         if (rating === 0 || reviewCount === 0) {
             console.log('Rating/reviews not found in description, searching HTML content...');
 
+            // Log HTML samples containing potential rating data for debugging
+            const ratingPattern = /4\.4/g;
+            const matches = [];
+            let match;
+            while ((match = ratingPattern.exec(htmlContent)) !== null && matches.length < 3) {
+                const start = Math.max(0, match.index - 100);
+                const end = Math.min(htmlContent.length, match.index + 100);
+                matches.push(htmlContent.substring(start, end));
+            }
+            if (matches.length > 0) {
+                console.log('Found "4.4" in HTML, sample contexts:');
+                matches.forEach((ctx, i) => console.log(`  Sample ${i + 1}:`, ctx));
+            }
+
             // Pattern 1: ["4.1",123] or ["3.7",649] or ["4.4",6692]
             const pattern1 = /\["([\d.]+)",(\d+)\]/g;
             let matches1;
@@ -492,6 +506,7 @@ app.post('/api/place-from-url', async (req, res) => {
 
             // Use the match with highest review count (most likely to be the main rating)
             if (allMatches.length > 0) {
+                console.log('All pattern 1 matches:', allMatches);
                 const bestMatch = allMatches.reduce((max, curr) => curr.reviews > max.reviews ? curr : max);
                 if (rating === 0) rating = bestMatch.rating;
                 if (reviewCount === 0) reviewCount = bestMatch.reviews;

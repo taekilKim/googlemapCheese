@@ -637,7 +637,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Goog-Api-Key': apiKey,
-                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                        'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
                     },
                     timeout: 10000
                 });
@@ -749,7 +749,7 @@ app.post('/api/place-from-url', async (req, res) => {
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'X-Goog-Api-Key': apiKey,
-                                    'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                                    'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
                                 },
                                 timeout: 10000
                             });
@@ -859,7 +859,7 @@ app.post('/api/place-from-url', async (req, res) => {
                                             headers: {
                                                 'Content-Type': 'application/json',
                                                 'X-Goog-Api-Key': apiKey,
-                                                'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
+                                                'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
                                             },
                                             timeout: 10000
                                         });

@@ -718,15 +718,23 @@ app.post('/api/place-from-url', async (req, res) => {
                 }
 
                 // Query 3: Extract Latin/English characters for international places
-                // For mixed Korean-English names like "몰타 St. 피터 풀" -> "St."
+                // Only use if we get a meaningful phrase (10+ chars, 2+ words)
+                // For mixed Korean-English names like "몰타 St. 피터 풀" -> extract only if substantial
                 const latinOnly = primaryName.match(/[A-Za-z\s.']+/g);
                 if (latinOnly && latinOnly.length > 0) {
                     const englishName = latinOnly.join(' ').trim();
-                    if (englishName.length > 2 && englishName !== primaryName) {
+                    const wordCount = englishName.split(/\s+/).filter(w => w.length > 0).length;
+
+                    // Only use if: 10+ characters AND 2+ words AND different from primary
+                    if (englishName.length >= 10 &&
+                        wordCount >= 2 &&
+                        englishName !== primaryName) {
                         searchQueries.push({
                             query: address ? `${englishName} ${address}` : englishName,
                             description: 'English/Latin characters only'
                         });
+                    } else {
+                        console.log(`Skipping Latin-only query (too short or single word): "${englishName}" (${englishName.length} chars, ${wordCount} words)`);
                     }
                 }
 

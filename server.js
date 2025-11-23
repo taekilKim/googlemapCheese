@@ -86,6 +86,19 @@ app.post('/api/place-from-url', async (req, res) => {
             console.log('Extracted ftid:', placeId);
         }
 
+        // Extract location context from URL's q parameter for better search results
+        let locationContext = null;
+        const qMatch = finalUrl.match(/[?&]q=([^&]+)/);
+        if (qMatch) {
+            try {
+                const decodedQ = decodeURIComponent(qMatch[1]);
+                console.log('Extracted q parameter:', decodedQ);
+                locationContext = decodedQ;
+            } catch (e) {
+                console.log('Could not decode q parameter:', e.message);
+            }
+        }
+
         // Detect language from URL or use provided language
         // IMPORTANT: This must happen AFTER URL expansion and coordinate extraction
         let detectedLang = language || 'en';
@@ -724,11 +737,32 @@ app.post('/api/place-from-url', async (req, res) => {
 
                 // Try multiple search queries for better results
                 // PRIORITY ORDER (English/Latin first for global reach):
+                // 0. Location context from URL q parameter - includes place + location (BEST for ftid)
                 // 1. English name from English HTML - BEST for ftid URLs and international places
                 // 2. Secondary name (English/local language)
                 // 3. Extract English/Latin characters from primary name
                 // 4. Primary name (Korean/localized) - Fallback only
                 const searchQueries = [];
+
+                // Query 0: Full location context from URL - HIGHEST PRIORITY for ftid URLs
+                if (locationContext && locationContext !== primaryName && locationContext !== englishNameOnly) {
+                    // Extract English/Latin parts from location context for better matching
+                    const locationLatinParts = locationContext.match(/[A-Za-z\s.']+/g);
+                    if (locationLatinParts && locationLatinParts.length > 0) {
+                        const locationEnglish = locationLatinParts.join(' ').trim();
+                        const wordCount = locationEnglish.split(/\s+/).filter(w => w.length > 0).length;
+
+                        // Use if it has meaningful content (2+ words)
+                        if (wordCount >= 2) {
+                            searchQueries.push({
+                                query: locationEnglish,
+                                description: 'Location context from URL (includes place + region)',
+                                priority: 0
+                            });
+                            console.log(`✓ Using location context from URL: "${locationEnglish}"`);
+                        }
+                    }
+                }
 
                 // Query 1: English name from English HTML - HIGHEST PRIORITY for ftid URLs
                 if (englishNameOnly && englishNameOnly !== primaryName) {
@@ -823,6 +857,27 @@ app.post('/api/place-from-url', async (req, res) => {
                 if (searchResponse.data.places && searchResponse.data.places.length > 0) {
                     console.log(`✓ Text Search returned ${searchResponse.data.places.length} result(s)`);
 
+                    // Filter out useless results before scoring
+                    const pureAddressTypes = ['route', 'street_address'];
+                    const filteredPlaces = searchResponse.data.places.filter(p => {
+                        // Skip if it's ONLY a pure address type (route/street_address) with no rating
+                        const isPureAddress = p.types?.length === 1 && pureAddressTypes.includes(p.types[0]);
+                        const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
+
+                        if (isPureAddress && !hasRating) {
+                            console.log(`  ✗ Filtering out pure address type without rating: ${p.displayName?.text || p.displayName} (${p.types?.join(', ')})`);
+                            return false;
+                        }
+                        return true;
+                    });
+
+                    console.log(`✓ After filtering: ${filteredPlaces.length} result(s) remaining`);
+
+                    if (filteredPlaces.length === 0) {
+                        console.log('✗ All results filtered out, trying next query...');
+                        continue;  // Try next search query
+                    }
+
                     // Filter and rank results to find the best match
                     // PRIORITY:
                     // 1. High-value types (tourist_attraction, natural_feature, etc.) with rating
@@ -837,7 +892,7 @@ app.post('/api/place-from-url', async (req, res) => {
                                            'restaurant', 'cafe', 'park', 'museum', 'store', 'establishment'];
 
                     // Score each place
-                    const scoredPlaces = searchResponse.data.places.map(p => {
+                    const scoredPlaces = filteredPlaces.map(p => {
                         const hasAddressType = p.types?.some(t => addressTypes.includes(t));
                         const hasHighValueType = p.types?.some(t => highValueTypes.includes(t));
                         const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;

@@ -52,6 +52,21 @@ body.android {
     }
 }
 
+/* Mobile responsive adjustments */
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+
+    .container {
+        padding: 20px 15px;
+    }
+
+    h1 {
+        font-size: 24px;
+    }
+}
+
 .section {
     display: flex;
     flex-direction: column;
@@ -166,6 +181,12 @@ button#downloadBtn:disabled {
     transition: all 0.2s;
 }
 
+@media (max-width: 480px) {
+    .file-upload {
+        padding: 30px 20px;
+    }
+}
+
 .file-upload:hover {
     border-color: #1a73e8;
     background: #f8f9fa;
@@ -188,6 +209,33 @@ button#downloadBtn:disabled {
     margin: 0 auto;
     background: #f8f9fa;
     overflow: hidden;
+    transform-origin: center top;
+}
+
+/* Scale preview for mobile devices while maintaining high-res capture */
+@media (max-width: 480px) {
+    .preview-container {
+        transform: scale(var(--preview-scale, 1));
+        margin-bottom: calc((375px * (1 - var(--preview-scale, 1))) * -1);
+    }
+}
+
+@media (max-width: 400px) {
+    .preview-container {
+        --preview-scale: 0.9;
+    }
+}
+
+@media (max-width: 360px) {
+    .preview-container {
+        --preview-scale: 0.85;
+    }
+}
+
+@media (max-width: 340px) {
+    .preview-container {
+        --preview-scale: 0.8;
+    }
 }
 
 .phone-preview {

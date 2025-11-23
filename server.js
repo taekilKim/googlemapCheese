@@ -151,9 +151,31 @@ app.post('/api/place-from-url', async (req, res) => {
             }
         });
 
+        // ALWAYS fetch English version for accurate international place names
+        // This is critical for ftid URLs and places with mixed language names
+        console.log('Fetching English version for accurate place name extraction...');
+        const englishResponse = await axios.get(finalUrl, {
+            ...fetchOptions,
+            headers: {
+                ...fetchOptions.headers,
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+
+        // Parse English name immediately for accurate Text Search queries
+        const $english = cheerio.load(englishResponse.data);
+        const englishFullName = $english('meta[property="og:title"]').attr('content') ||
+                                $english('meta[itemprop="name"]').attr('content') ||
+                                $english('title').text();
+        const englishNameOnly = englishFullName && !englishFullName.includes('Google Maps') && !englishFullName.includes('Google 지도')
+            ? englishFullName.split(' · ')[0]
+            : null;
+
+        console.log('English Name (for Text Search):', englishNameOnly);
+
         // Fetch local language version (secondary display name - for places outside Korea)
         let localResponse = null;
-        if (detectedLang !== 'ko') {
+        if (detectedLang !== 'ko' && detectedLang !== 'en') {
             localResponse = await axios.get(finalUrl, {
                 ...fetchOptions,
                 headers: {
@@ -161,6 +183,9 @@ app.post('/api/place-from-url', async (req, res) => {
                     'Accept-Language': `${detectedLang},en;q=0.9`
                 }
             });
+        } else {
+            // Use English version as local version
+            localResponse = englishResponse;
         }
 
         // Parse Korean version (primary)
@@ -699,48 +724,60 @@ app.post('/api/place-from-url', async (req, res) => {
 
                 // Try multiple search queries for better results
                 // PRIORITY ORDER (English/Latin first for global reach):
-                // 1. Secondary name (English/local language) - BEST for international places
-                // 2. Extract English/Latin characters from primary name
-                // 3. Primary name (Korean/localized) - Fallback only
+                // 1. English name from English HTML - BEST for ftid URLs and international places
+                // 2. Secondary name (English/local language)
+                // 3. Extract English/Latin characters from primary name
+                // 4. Primary name (Korean/localized) - Fallback only
                 const searchQueries = [];
 
-                // Query 1: Secondary name (English/local) - HIGHEST PRIORITY
-                if (secondaryName && secondaryName !== primaryName) {
+                // Query 1: English name from English HTML - HIGHEST PRIORITY for ftid URLs
+                if (englishNameOnly && englishNameOnly !== primaryName) {
+                    searchQueries.push({
+                        query: address ? `${englishNameOnly} ${address}` : englishNameOnly,
+                        description: 'English name from English HTML (highest priority)',
+                        priority: 1
+                    });
+                    console.log(`✓ Using English name as highest priority: "${englishNameOnly}"`);
+                }
+
+                // Query 2: Secondary name (English/local) - if different from English name
+                if (secondaryName && secondaryName !== primaryName && secondaryName !== englishNameOnly) {
                     searchQueries.push({
                         query: address ? `${secondaryName} ${address}` : secondaryName,
                         description: 'Secondary name (English/local) with address',
-                        priority: 1
+                        priority: 2
                     });
                 }
 
-                // Query 2: Extract Latin/English characters from primary name
+                // Query 3: Extract Latin/English characters from primary name
                 // Only use if we get a meaningful phrase (10+ chars, 2+ words)
                 // For mixed Korean-English names like "몰타 St. 피터 풀" -> extract only if substantial
                 const latinOnly = primaryName.match(/[A-Za-z\s.']+/g);
                 if (latinOnly && latinOnly.length > 0) {
-                    const englishName = latinOnly.join(' ').trim();
-                    const wordCount = englishName.split(/\s+/).filter(w => w.length > 0).length;
+                    const extractedEnglish = latinOnly.join(' ').trim();
+                    const wordCount = extractedEnglish.split(/\s+/).filter(w => w.length > 0).length;
 
-                    // Only use if: 10+ characters AND 2+ words AND different from primary
-                    if (englishName.length >= 10 &&
+                    // Only use if: 10+ characters AND 2+ words AND different from all previous queries
+                    if (extractedEnglish.length >= 10 &&
                         wordCount >= 2 &&
-                        englishName !== primaryName &&
-                        englishName !== secondaryName) {  // Don't duplicate secondary name
+                        extractedEnglish !== primaryName &&
+                        extractedEnglish !== secondaryName &&
+                        extractedEnglish !== englishNameOnly) {  // Don't duplicate English name
                         searchQueries.push({
-                            query: address ? `${englishName} ${address}` : englishName,
+                            query: address ? `${extractedEnglish} ${address}` : extractedEnglish,
                             description: 'Extracted English/Latin characters',
-                            priority: 2
+                            priority: 3
                         });
                     } else {
-                        console.log(`Skipping Latin-only query (too short or duplicate): "${englishName}" (${englishName.length} chars, ${wordCount} words)`);
+                        console.log(`Skipping Latin-only query (too short or duplicate): "${extractedEnglish}" (${extractedEnglish.length} chars, ${wordCount} words)`);
                     }
                 }
 
-                // Query 3: Primary name (Korean/localized) - LOWEST PRIORITY (Fallback)
+                // Query 4: Primary name (Korean/localized) - LOWEST PRIORITY (Fallback)
                 searchQueries.push({
                     query: address ? `${primaryName} ${address}` : primaryName,
                     description: 'Primary name (Korean) - fallback',
-                    priority: 3
+                    priority: 4
                 });
 
                 console.log(`Will try ${searchQueries.length} search queries:`, searchQueries.map(q => q.description));

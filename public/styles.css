@@ -77,16 +77,17 @@ body.android {
 /* Mobile responsive adjustments */
 @media (max-width: 480px) {
     body {
-        padding: 12px;
+        padding: 8px;
     }
 
     .container {
-        padding: 28px 20px;
-        gap: 32px;
+        padding: 20px 16px;
+        gap: 24px;
+        border-radius: 16px;
     }
 
     h1 {
-        font-size: 26px;
+        font-size: 24px;
     }
 
     .subtitle {
@@ -95,6 +96,45 @@ body.android {
 
     .preview-title {
         font-size: 16px;
+    }
+
+    input[type="text"] {
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+
+    button#fetchBtn,
+    button#downloadBtn,
+    .secondary-btn {
+        padding: 12px 24px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 360px) {
+    body {
+        padding: 6px;
+    }
+
+    .container {
+        padding: 16px 12px;
+        gap: 20px;
+    }
+
+    h1 {
+        font-size: 22px;
+    }
+
+    input[type="text"] {
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+
+    button#fetchBtn,
+    button#downloadBtn,
+    .secondary-btn {
+        padding: 10px 20px;
+        font-size: 14px;
     }
 }
 
@@ -148,6 +188,7 @@ label {
 }
 
 input[type="text"] {
+    width: 100%;
     padding: 14px 18px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -178,6 +219,7 @@ input[type="text"]:focus {
 button#fetchBtn,
 button#downloadBtn,
 .secondary-btn {
+    width: 100%;
     padding: 14px 28px;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, rgba(79, 70, 229, 0.9) 100%);
     color: white;
@@ -284,7 +326,21 @@ button#downloadBtn:disabled {
 
 @media (max-width: 480px) {
     .file-upload {
-        padding: 36px 24px;
+        padding: 32px 20px;
+    }
+}
+
+@media (max-width: 360px) {
+    .file-upload {
+        padding: 24px 16px;
+    }
+
+    .file-upload p {
+        font-size: 13px;
+    }
+
+    .file-upload small {
+        font-size: 12px;
     }
 }
 
@@ -307,12 +363,19 @@ button#downloadBtn:disabled {
     display: none;
 }
 
+/* Wrapper for preview scaling */
+.preview-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+}
+
 /* Google Maps Card Preview - Material Design */
 .preview-container {
     position: relative;
     width: 375px;
     max-width: 375px;
-    margin: 0 auto;
     background: #f8f9fa;
     overflow: hidden;
     transform-origin: center top;

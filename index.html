@@ -105,7 +105,8 @@
         <div class="section">
             <h2 class="preview-title">미리보기</h2>
 
-            <div class="preview-container" id="previewContainer">
+            <div class="preview-wrapper">
+                <div class="preview-container" id="previewContainer">
                 <div class="phone-preview">
                     <div class="photo-container" id="photoContainer">
                         <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #9aa0a6;">
@@ -190,6 +191,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
         </div>
     </main>
@@ -217,6 +219,32 @@
         })();
 
         const API_BASE_URL = window.location.origin;
+
+        // Scale preview to fit mobile screen
+        function scalePreview() {
+            const previewContainer = document.getElementById('previewContainer');
+            const wrapper = previewContainer.parentElement;
+
+            // Original preview width is 375px
+            const originalWidth = 375;
+            const availableWidth = wrapper.clientWidth;
+
+            // Calculate scale to fit screen
+            if (availableWidth < originalWidth) {
+                const scale = availableWidth / originalWidth;
+                previewContainer.style.transform = `scale(${scale})`;
+                // Adjust wrapper height to match scaled content
+                const originalHeight = previewContainer.offsetHeight;
+                wrapper.style.height = `${originalHeight * scale}px`;
+            } else {
+                previewContainer.style.transform = 'scale(1)';
+                wrapper.style.height = 'auto';
+            }
+        }
+
+        // Run on load and resize
+        window.addEventListener('load', scalePreview);
+        window.addEventListener('resize', scalePreview);
 
         // File upload handling
         const fileUpload = document.getElementById('fileUpload');
@@ -255,6 +283,8 @@
             reader.onload = (e) => {
                 photoContainer.innerHTML = `<img src="${e.target.result}" alt="Uploaded photo">`;
                 document.getElementById('downloadBtn').disabled = false;
+                // Recalculate scale after image load
+                setTimeout(scalePreview, 100);
             };
             reader.readAsDataURL(file);
         }
@@ -411,6 +441,9 @@
 
             // 6. 버튼 - Fixed buttons in HTML, no dynamic updates needed
             // updateActionButtons(place); // Disabled - using fixed buttons
+
+            // Recalculate scale after content update
+            setTimeout(scalePreview, 100);
         }
 
         // Update action buttons - Fixed order: 경로, 통화, 저장, 예약
@@ -591,14 +624,28 @@
         // Download image
         async function downloadImage() {
             const previewContainer = document.getElementById('previewContainer');
+            const wrapper = previewContainer.parentElement;
+
+            // Save original transform and wrapper height
+            const originalTransform = previewContainer.style.transform;
+            const originalWrapperHeight = wrapper.style.height;
 
             try {
+                // Temporarily remove transform for high-res capture
+                previewContainer.style.transform = 'scale(1)';
+                wrapper.style.height = 'auto';
+
+                // Capture at high resolution
                 const canvas = await html2canvas(previewContainer, {
                     scale: 2,
                     backgroundColor: '#f8f9fa',
                     logging: false,
                     useCORS: true
                 });
+
+                // Restore transform
+                previewContainer.style.transform = originalTransform;
+                wrapper.style.height = originalWrapperHeight;
 
                 canvas.toBlob((blob) => {
                     const url = URL.createObjectURL(blob);
@@ -610,6 +657,9 @@
                 }, 'image/jpeg', 0.95);
             } catch (error) {
                 console.error('Download error:', error);
+                // Restore transform even on error
+                previewContainer.style.transform = originalTransform;
+                wrapper.style.height = originalWrapperHeight;
                 showError('이미지 저장 중 오류가 발생했습니다.');
             }
         }

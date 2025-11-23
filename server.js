@@ -736,12 +736,12 @@ app.post('/api/place-from-url', async (req, res) => {
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
 
                 // Try multiple search queries for better results
-                // PRIORITY ORDER (English/Latin first for global reach):
+                // PRIORITY ORDER (English/Latin ONLY - no Korean):
                 // 0. Location context from URL q parameter - includes place + location (BEST for ftid)
                 // 1. English name from English HTML - BEST for ftid URLs and international places
                 // 2. Secondary name (English/local language)
                 // 3. Extract English/Latin characters from primary name
-                // 4. Primary name (Korean/localized) - Fallback only
+                // Korean queries are NOT used to avoid wrong matches
                 const searchQueries = [];
 
                 // Query 0: Full location context from URL - HIGHEST PRIORITY for ftid URLs
@@ -807,13 +807,7 @@ app.post('/api/place-from-url', async (req, res) => {
                     }
                 }
 
-                // Query 4: Primary name (Korean/localized) - LOWEST PRIORITY (Fallback)
-                searchQueries.push({
-                    query: address ? `${primaryName} ${address}` : primaryName,
-                    description: 'Primary name (Korean) - fallback',
-                    priority: 4
-                });
-
+                // DO NOT add Korean query - only use English/Latin queries for international places
                 console.log(`Will try ${searchQueries.length} search queries:`, searchQueries.map(q => q.description));
 
                 // Try each query until we get results with ratings

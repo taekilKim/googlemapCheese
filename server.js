@@ -787,56 +787,43 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log(`✓ Text Search returned ${searchResponse.data.places.length} result(s)`);
 
                     // Filter and rank results to find the best match
-                    // Prefer: 1) Places with ratings, 2) Establishment types over route types
+                    // PRIORITY:
+                    // 1. High-value types (tourist_attraction, natural_feature, etc.) with rating
+                    // 2. Non-address types with rating
+                    // 3. High-value types without rating
+                    // 4. Non-address types without rating
+                    // 5. Any place with rating
+                    // 6. First result
                     let place = null;
                     const addressTypes = ['route', 'street_address', 'premise', 'subpremise'];
+                    const highValueTypes = ['tourist_attraction', 'natural_feature', 'point_of_interest',
+                                           'restaurant', 'cafe', 'park', 'museum', 'store', 'establishment'];
 
-                    // First, try to find a non-route type with rating
-                    for (const p of searchResponse.data.places) {
+                    // Score each place
+                    const scoredPlaces = searchResponse.data.places.map(p => {
                         const hasAddressType = p.types?.some(t => addressTypes.includes(t));
+                        const hasHighValueType = p.types?.some(t => highValueTypes.includes(t));
                         const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
+
+                        let score = 0;
+                        if (hasHighValueType) score += 100;
+                        if (!hasAddressType) score += 50;
+                        if (hasRating) score += 30;
+                        if (p.userRatingCount > 100) score += 20;
 
                         console.log(`  Candidate: ${p.displayName?.text || p.displayName}`);
                         console.log(`    Types: ${p.types?.join(', ') || 'none'}`);
-                        console.log(`    Is address type: ${hasAddressType}`);
-                        console.log(`    Has rating: ${hasRating} (${p.rating}/${p.userRatingCount})`);
+                        console.log(`    High-value type: ${hasHighValueType}, Address type: ${hasAddressType}`);
+                        console.log(`    Rating: ${hasRating} (${p.rating}/${p.userRatingCount})`);
+                        console.log(`    Score: ${score}`);
 
-                        if (!hasAddressType && hasRating) {
-                            place = p;
-                            console.log(`  ✓ Selected: Non-route type with rating`);
-                            break;
-                        }
-                    }
+                        return { place: p, score };
+                    });
 
-                    // Second, try to find any non-route type
-                    if (!place) {
-                        for (const p of searchResponse.data.places) {
-                            const hasAddressType = p.types?.some(t => addressTypes.includes(t));
-                            if (!hasAddressType) {
-                                place = p;
-                                console.log(`  ✓ Selected: Non-route type without rating`);
-                                break;
-                            }
-                        }
-                    }
-
-                    // Third, try to find any place with rating (even if route type)
-                    if (!place) {
-                        for (const p of searchResponse.data.places) {
-                            const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
-                            if (hasRating) {
-                                place = p;
-                                console.log(`  ✓ Selected: Route type with rating`);
-                                break;
-                            }
-                        }
-                    }
-
-                    // Finally, fall back to first result
-                    if (!place) {
-                        place = searchResponse.data.places[0];
-                        console.log(`  ✓ Selected: First result (fallback)`);
-                    }
+                    // Sort by score (highest first) and pick the best
+                    scoredPlaces.sort((a, b) => b.score - a.score);
+                    place = scoredPlaces[0].place;
+                    console.log(`  ✓ Selected best match with score ${scoredPlaces[0].score}`);
 
                     console.log('✓ Places API (New) success!');
                     console.log('  Full API response:', JSON.stringify(place, null, 2));
@@ -917,21 +904,28 @@ app.post('/api/place-from-url', async (req, res) => {
                     console.log('Mapped apiData:', JSON.stringify(apiData, null, 2));
 
                     // If we found results with rating, stop trying other queries
+                    // Otherwise keep this result as fallback and try next query
                     if (apiData.rating && apiData.user_ratings_total) {
                         console.log(`✓ Found place with rating using query: "${query}"`);
-                        break;  // Exit the query loop
+                        break;  // Exit the query loop - we have what we need
                     } else {
-                        console.log(`⚠ Found place but no rating, will try next query if available`);
-                        apiData = null;  // Reset to try next query
+                        console.log(`⚠ Found place but no rating, keeping as fallback and trying next query`);
+                        // Keep apiData as fallback, don't reset to null
                     }
                 } else {
                     console.log(`Text Search returned no results for query: "${query}"`);
                 }
             }  // End of search queries loop
 
-            // If all queries failed, log the failure
-            if (!apiData) {
-                console.log('⚠ All Text Search queries failed to find place with rating');
+            // Log final result
+            if (apiData) {
+                if (apiData.rating && apiData.user_ratings_total) {
+                    console.log(`✓ Final: Using place with rating`);
+                } else {
+                    console.log(`⚠ Final: Using place without rating (no better option found)`);
+                }
+            } else {
+                console.log('⚠ All Text Search queries failed to find any place');
             }
         } catch (error) {
                 console.log('Places API (New) error:', error.message);

@@ -697,30 +697,69 @@ app.post('/api/place-from-url', async (req, res) => {
                 console.log('Searching for place with Text Search API...');
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
 
-                // Build request body - include location bias only if coordinates available
-                const requestBody = {
-                    textQuery: address ? `${primaryName} ${address}` : primaryName,
-                    languageCode: detectedLang,
-                    maxResultCount: 5  // Get multiple results to filter for best match
-                };
+                // Try multiple search queries for better results
+                // 1. Primary name (Korean/localized)
+                // 2. Secondary name (local language) if available and different
+                // 3. Extract English/Latin characters only from primary name for international places
+                const searchQueries = [];
 
-                // Add location bias if coordinates are available (improves accuracy)
-                if (coordinates) {
-                    requestBody.locationBias = {
-                        circle: {
-                            center: {
-                                latitude: coordinates.lat,
-                                longitude: coordinates.lng
-                            },
-                            radius: 500.0  // 500 meters radius
-                        }
-                    };
-                    console.log('Using location bias with coordinates:', coordinates);
-                } else {
-                    console.log('No coordinates available, searching by name and address only');
+                // Query 1: Primary name + address
+                searchQueries.push({
+                    query: address ? `${primaryName} ${address}` : primaryName,
+                    description: 'Primary name with address'
+                });
+
+                // Query 2: Secondary name if available
+                if (secondaryName && secondaryName !== primaryName) {
+                    searchQueries.push({
+                        query: address ? `${secondaryName} ${address}` : secondaryName,
+                        description: 'Secondary name with address'
+                    });
                 }
 
-                console.log('Request body:', JSON.stringify(requestBody, null, 2));
+                // Query 3: Extract Latin/English characters for international places
+                // For mixed Korean-English names like "몰타 St. 피터 풀" -> "St."
+                const latinOnly = primaryName.match(/[A-Za-z\s.']+/g);
+                if (latinOnly && latinOnly.length > 0) {
+                    const englishName = latinOnly.join(' ').trim();
+                    if (englishName.length > 2 && englishName !== primaryName) {
+                        searchQueries.push({
+                            query: address ? `${englishName} ${address}` : englishName,
+                            description: 'English/Latin characters only'
+                        });
+                    }
+                }
+
+                console.log(`Will try ${searchQueries.length} search queries:`, searchQueries.map(q => q.description));
+
+                // Try each query until we get results with ratings
+                for (const { query, description } of searchQueries) {
+                    console.log(`\nTrying search query: "${query}" (${description})`);
+
+                    // Build request body - include location bias only if coordinates available
+                    const requestBody = {
+                        textQuery: query,
+                        languageCode: detectedLang,
+                        maxResultCount: 5  // Get multiple results to filter for best match
+                    };
+
+                    // Add location bias if coordinates are available (improves accuracy)
+                    if (coordinates) {
+                        requestBody.locationBias = {
+                            circle: {
+                                center: {
+                                    latitude: coordinates.lat,
+                                    longitude: coordinates.lng
+                                },
+                                radius: 500.0  // 500 meters radius
+                            }
+                        };
+                        console.log('Using location bias with coordinates:', coordinates);
+                    } else {
+                        console.log('No coordinates available, searching by name and address only');
+                    }
+
+                    console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
                 const searchResponse = await axios.post(searchUrl, requestBody, {
                     headers: {
@@ -863,161 +902,25 @@ app.post('/api/place-from-url', async (req, res) => {
                     };
 
                     console.log('Mapped apiData:', JSON.stringify(apiData, null, 2));
-                } else {
-                    console.log('Text Search returned no results');
 
-                    // Retry with secondary name (local language name) if available
-                    if (secondaryName && secondaryName !== primaryName) {
-                        console.log('Retrying Text Search with secondary name:', secondaryName);
-                        try {
-                            const retryRequestBody = {
-                                textQuery: address ? `${secondaryName} ${address}` : secondaryName,
-                                languageCode: detectedLang,
-                                maxResultCount: 5  // Get multiple results to filter for best match
-                            };
-
-                            if (coordinates) {
-                                retryRequestBody.locationBias = {
-                                    circle: {
-                                        center: {
-                                            latitude: coordinates.lat,
-                                            longitude: coordinates.lng
-                                        },
-                                        radius: 500.0
-                                    }
-                                };
-                            }
-
-                            console.log('Retry request body:', JSON.stringify(retryRequestBody, null, 2));
-
-                            const retryResponse = await axios.post(searchUrl, retryRequestBody, {
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-Goog-Api-Key': apiKey,
-                                    'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.priceRange,places.priceLevel,places.businessStatus,places.types,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.googleMapsLinks,places.reservable,places.delivery,places.takeout,places.dineIn,places.currentOpeningHours.openNow,places.currentOpeningHours.nextOpenTime,places.currentOpeningHours.nextCloseTime'
-                                },
-                                timeout: 10000
-                            });
-
-                            if (retryResponse.data.places && retryResponse.data.places.length > 0) {
-                                console.log(`✓ Retry returned ${retryResponse.data.places.length} result(s)`);
-
-                                // Apply same filtering logic as primary search
-                                let place = null;
-                                const addressTypes = ['route', 'street_address', 'premise', 'subpremise'];
-
-                                // First, try to find a non-route type with rating
-                                for (const p of retryResponse.data.places) {
-                                    const hasAddressType = p.types?.some(t => addressTypes.includes(t));
-                                    const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
-
-                                    console.log(`  Retry Candidate: ${p.displayName?.text || p.displayName}`);
-                                    console.log(`    Types: ${p.types?.join(', ') || 'none'}`);
-                                    console.log(`    Is address type: ${hasAddressType}`);
-                                    console.log(`    Has rating: ${hasRating} (${p.rating}/${p.userRatingCount})`);
-
-                                    if (!hasAddressType && hasRating) {
-                                        place = p;
-                                        console.log(`  ✓ Selected: Non-route type with rating`);
-                                        break;
-                                    }
-                                }
-
-                                // Second, try to find any non-route type
-                                if (!place) {
-                                    for (const p of retryResponse.data.places) {
-                                        const hasAddressType = p.types?.some(t => addressTypes.includes(t));
-                                        if (!hasAddressType) {
-                                            place = p;
-                                            console.log(`  ✓ Selected: Non-route type without rating`);
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                // Third, try to find any place with rating (even if route type)
-                                if (!place) {
-                                    for (const p of retryResponse.data.places) {
-                                        const hasRating = p.rating !== undefined && p.userRatingCount !== undefined;
-                                        if (hasRating) {
-                                            place = p;
-                                            console.log(`  ✓ Selected: Route type with rating`);
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                // Finally, fall back to first result
-                                if (!place) {
-                                    place = retryResponse.data.places[0];
-                                    console.log(`  ✓ Selected: First result (fallback)`);
-                                }
-
-                                console.log('✓ Retry successful with secondary name!');
-
-                                // Check for missing rating/reviews and call Place Details if needed
-                                if ((place.rating === undefined || place.userRatingCount === undefined) && place.id) {
-                                    console.log('⚠ Retry result missing rating/reviews, trying Place Details API...');
-                                    try {
-                                        const detailsUrl = `https://places.googleapis.com/v1/places/${place.id}`;
-                                        const detailsResponse = await axios.get(detailsUrl, {
-                                            headers: {
-                                                'Content-Type': 'application/json',
-                                                'X-Goog-Api-Key': apiKey,
-                                                'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,priceRange,priceLevel,businessStatus,types,formattedAddress,internationalPhoneNumber,nationalPhoneNumber,websiteUri,googleMapsUri,location,delivery,takeout,dineIn,currentOpeningHours.openNow,currentOpeningHours.nextOpenTime,currentOpeningHours.nextCloseTime'
-                                            },
-                                            timeout: 10000
-                                        });
-
-                                        const detailsPlace = detailsResponse.data;
-                                        console.log('✓ Place Details API success after retry!');
-                                        console.log('  Full Place Details response:', JSON.stringify(detailsPlace, null, 2));
-                                        console.log('  Details Rating:', detailsPlace.rating);
-                                        console.log('  Details User Rating Count:', detailsPlace.userRatingCount);
-
-                                        // Merge details
-                                        if (detailsPlace.rating !== undefined) place.rating = detailsPlace.rating;
-                                        if (detailsPlace.userRatingCount !== undefined) place.userRatingCount = detailsPlace.userRatingCount;
-                                        if (detailsPlace.priceRange) place.priceRange = detailsPlace.priceRange;
-                                        if (detailsPlace.priceLevel) place.priceLevel = detailsPlace.priceLevel;
-                                        if (detailsPlace.businessStatus) place.businessStatus = detailsPlace.businessStatus;
-                                        if (detailsPlace.currentOpeningHours) place.currentOpeningHours = detailsPlace.currentOpeningHours;
-                                    } catch (detailsError) {
-                                        console.log('⚠ Place Details after retry failed:', detailsError.message);
-                                    }
-                                }
-
-                                // Map the retry result
-                                apiData = {
-                                    name: place.displayName?.text || place.displayName,
-                                    rating: place.rating,
-                                    user_ratings_total: place.userRatingCount,
-                                    price_range: place.priceRange,
-                                    price_level: place.priceLevel,
-                                    business_status: place.businessStatus,
-                                    types: place.types,
-                                    formatted_phone_number: place.internationalPhoneNumber,
-                                    national_phone_number: place.nationalPhoneNumber,
-                                    website: place.websiteUri,
-                                    google_maps_uri: place.googleMapsUri || place.googleMapsLinks?.placeUri,
-                                    directions_uri: place.googleMapsLinks?.directionsUri,
-                                    reservable: place.reservable,
-                                    delivery: place.delivery,
-                                    takeout: place.takeout,
-                                    dine_in: place.dineIn,
-                                    opening_hours: place.currentOpeningHours
-                                };
-
-                                console.log('Mapped apiData from retry:', JSON.stringify(apiData, null, 2));
-                            } else {
-                                console.log('Retry with secondary name also returned no results');
-                            }
-                        } catch (retryError) {
-                            console.log('Retry with secondary name failed:', retryError.message);
-                        }
+                    // If we found results with rating, stop trying other queries
+                    if (apiData.rating && apiData.user_ratings_total) {
+                        console.log(`✓ Found place with rating using query: "${query}"`);
+                        break;  // Exit the query loop
+                    } else {
+                        console.log(`⚠ Found place but no rating, will try next query if available`);
+                        apiData = null;  // Reset to try next query
                     }
+                } else {
+                    console.log(`Text Search returned no results for query: "${query}"`);
                 }
-            } catch (error) {
+            }  // End of search queries loop
+
+            // If all queries failed, log the failure
+            if (!apiData) {
+                console.log('⚠ All Text Search queries failed to find place with rating');
+            }
+        } catch (error) {
                 console.log('Places API (New) error:', error.message);
                 if (error.response) {
                     console.log('Error response:', error.response.data);

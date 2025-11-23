@@ -197,6 +197,7 @@ button#downloadBtn:disabled {
 .preview-container {
     position: relative;
     width: 375px;
+    max-width: 375px;
     margin: 0 auto;
     background: #f8f9fa;
     overflow: hidden;
@@ -308,7 +309,8 @@ button#downloadBtn:disabled {
     width: 32px;
     height: 32px;
     border: none;
-    background: none;
+    background: #f2f2f2;
+    border-radius:50%;
     cursor: default;
     display: flex;
     align-items: center;
@@ -338,7 +340,7 @@ button#downloadBtn:disabled {
 }
 
 .category {
-    font-size: 13px;
+    font-size: 14px;
     color: #5f6368;
     margin-bottom: 12px;
     font-weight: 400;
@@ -354,7 +356,7 @@ button#downloadBtn:disabled {
 .rating-number {
     font-size: 14px;
     font-weight: 400;
-    color: #202124;
+    color: #5f6368;
 }
 
 .stars {
@@ -381,21 +383,22 @@ button#downloadBtn:disabled {
     font-weight: 400;
     margin-left: 4px;
 }
-
+.business-hours-section{
+    font-size:14px;
+    color:#5f6368;
+    font-weight:400;
+    line-height: 24px;
+}
 .business-status {
     font-size: 14px;
     color: #5f6368;
     font-weight: 400;
-    margin-left: 4px;
 }
-
-.business-status.closed {
-    color: #d93025;
+.business-status.status-open {
+    color:#198639
 }
-
-.business-status::before {
-    content: '·';
-    margin-right: 4px;
+.business-status.status-closed {
+    color: #dc362e;
 }
 
 .info-section {
@@ -448,7 +451,7 @@ button#downloadBtn:disabled {
     cursor: default;
     font-size: 14px;
     font-weight: 500;
-    border-radius: 20px;
+    border-radius: 32px;
     font-family: inherit;
     line-height: 24px;
     width: fit-content;
@@ -510,77 +513,4 @@ button#downloadBtn:disabled {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
-
-/* 모바일 반응형 스타일 */
-@media (max-width: 480px) {
-    body {
-        padding: 10px;
-    }
-
-    .container {
-        padding: 15px;
-        gap: 15px;
-    }
-
-    h1 {
-        font-size: 22px;
-    }
-
-    .subtitle {
-        font-size: 13px;
-    }
-
-    .phone-container {
-        max-width: 100%;
-        padding: 0;
-    }
-
-    .maps-card {
-        padding: 12px;
-        margin-top: -12px;
-    }
-
-    .place-name {
-        font-size: 18px;
-    }
-
-    .place-name-secondary {
-        font-size: 13px;
-    }
-
-    .rating-section {
-        font-size: 13px;
-    }
-
-    .category, .category-price-section, .business-hours-section {
-        font-size: 13px;
-    }
-
-    .action-buttons {
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .action-btn {
-        min-width: 70px;
-        padding: 10px 12px;
-        font-size: 12px;
-    }
-
-    .action-icon {
-        font-size: 18px;
-    }
-
-    input[type="text"] {
-        font-size: 14px;
-        padding: 12px;
-    }
-
-    button#fetchBtn,
-    button#downloadBtn,
-    .secondary-btn {
-        padding: 12px 16px;
-        font-size: 14px;
-    }
 }

@@ -736,32 +736,31 @@ app.post('/api/place-from-url', async (req, res) => {
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
 
                 // Try multiple search queries for better results
-                // PRIORITY ORDER (English/Latin ONLY - no Korean):
-                // 0. Location context from URL q parameter - includes place + location (BEST for ftid)
+                // PRIORITY ORDER:
+                // - For Korean places: Use Korean queries
+                // - For international places: Use English/Latin queries ONLY
+                // 0. Location context from URL q parameter - full query with location
                 // 1. English name from English HTML - BEST for ftid URLs and international places
                 // 2. Secondary name (English/local language)
                 // 3. Extract English/Latin characters from primary name
-                // Korean queries are NOT used to avoid wrong matches
+                // 4. Primary name (Korean) - ONLY for Korean places
                 const searchQueries = [];
 
-                // Query 0: Full location context from URL - HIGHEST PRIORITY for ftid URLs
-                if (locationContext && locationContext !== primaryName && locationContext !== englishNameOnly) {
-                    // Extract English/Latin parts from location context for better matching
-                    const locationLatinParts = locationContext.match(/[A-Za-z\s.']+/g);
-                    if (locationLatinParts && locationLatinParts.length > 0) {
-                        const locationEnglish = locationLatinParts.join(' ').trim();
-                        const wordCount = locationEnglish.split(/\s+/).filter(w => w.length > 0).length;
+                // Detect if this is a Korean place or international place
+                const isKoreanPlace = detectedLang === 'ko' ||
+                                     (coordinates && coordinates.lat >= 33 && coordinates.lat <= 43 &&
+                                      coordinates.lng >= 124 && coordinates.lng <= 132);
+                console.log(`Place location: ${isKoreanPlace ? 'Korea' : 'International'}`);
 
-                        // Use if it has meaningful content (2+ words)
-                        if (wordCount >= 2) {
-                            searchQueries.push({
-                                query: locationEnglish,
-                                description: 'Location context from URL (includes place + region)',
-                                priority: 0
-                            });
-                            console.log(`✓ Using location context from URL: "${locationEnglish}"`);
-                        }
-                    }
+                // Query 0: Full location context from URL - HIGHEST PRIORITY for ftid URLs
+                // Use the FULL query including Korean/local text for better accuracy
+                if (locationContext && locationContext !== primaryName && locationContext !== englishNameOnly) {
+                    searchQueries.push({
+                        query: locationContext,
+                        description: 'Full location context from URL (includes place + region)',
+                        priority: 0
+                    });
+                    console.log(`✓ Using full location context from URL: "${locationContext}"`);
                 }
 
                 // Query 1: English name from English HTML - HIGHEST PRIORITY for ftid URLs
@@ -807,7 +806,18 @@ app.post('/api/place-from-url', async (req, res) => {
                     }
                 }
 
-                // DO NOT add Korean query - only use English/Latin queries for international places
+                // Query 4: Primary name (Korean) - ONLY for Korean places
+                if (isKoreanPlace) {
+                    searchQueries.push({
+                        query: address ? `${primaryName} ${address}` : primaryName,
+                        description: 'Primary name (Korean) - for Korean places only',
+                        priority: 4
+                    });
+                    console.log(`✓ Adding Korean query for Korean place: "${primaryName}"`);
+                } else {
+                    console.log(`✗ Skipping Korean query for international place`);
+                }
+
                 console.log(`Will try ${searchQueries.length} search queries:`, searchQueries.map(q => q.description));
 
                 // Try each query until we get results with ratings

@@ -698,26 +698,22 @@ app.post('/api/place-from-url', async (req, res) => {
                 const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
 
                 // Try multiple search queries for better results
-                // 1. Primary name (Korean/localized)
-                // 2. Secondary name (local language) if available and different
-                // 3. Extract English/Latin characters only from primary name for international places
+                // PRIORITY ORDER (English/Latin first for global reach):
+                // 1. Secondary name (English/local language) - BEST for international places
+                // 2. Extract English/Latin characters from primary name
+                // 3. Primary name (Korean/localized) - Fallback only
                 const searchQueries = [];
 
-                // Query 1: Primary name + address
-                searchQueries.push({
-                    query: address ? `${primaryName} ${address}` : primaryName,
-                    description: 'Primary name with address'
-                });
-
-                // Query 2: Secondary name if available
+                // Query 1: Secondary name (English/local) - HIGHEST PRIORITY
                 if (secondaryName && secondaryName !== primaryName) {
                     searchQueries.push({
                         query: address ? `${secondaryName} ${address}` : secondaryName,
-                        description: 'Secondary name with address'
+                        description: 'Secondary name (English/local) with address',
+                        priority: 1
                     });
                 }
 
-                // Query 3: Extract Latin/English characters for international places
+                // Query 2: Extract Latin/English characters from primary name
                 // Only use if we get a meaningful phrase (10+ chars, 2+ words)
                 // For mixed Korean-English names like "몰타 St. 피터 풀" -> extract only if substantial
                 const latinOnly = primaryName.match(/[A-Za-z\s.']+/g);
@@ -728,15 +724,24 @@ app.post('/api/place-from-url', async (req, res) => {
                     // Only use if: 10+ characters AND 2+ words AND different from primary
                     if (englishName.length >= 10 &&
                         wordCount >= 2 &&
-                        englishName !== primaryName) {
+                        englishName !== primaryName &&
+                        englishName !== secondaryName) {  // Don't duplicate secondary name
                         searchQueries.push({
                             query: address ? `${englishName} ${address}` : englishName,
-                            description: 'English/Latin characters only'
+                            description: 'Extracted English/Latin characters',
+                            priority: 2
                         });
                     } else {
-                        console.log(`Skipping Latin-only query (too short or single word): "${englishName}" (${englishName.length} chars, ${wordCount} words)`);
+                        console.log(`Skipping Latin-only query (too short or duplicate): "${englishName}" (${englishName.length} chars, ${wordCount} words)`);
                     }
                 }
+
+                // Query 3: Primary name (Korean/localized) - LOWEST PRIORITY (Fallback)
+                searchQueries.push({
+                    query: address ? `${primaryName} ${address}` : primaryName,
+                    description: 'Primary name (Korean) - fallback',
+                    priority: 3
+                });
 
                 console.log(`Will try ${searchQueries.length} search queries:`, searchQueries.map(q => q.description));
 

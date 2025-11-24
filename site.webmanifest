@@ -1,0 +1,34 @@
+{
+  "name": "구글 지도 인증샷 메이커",
+  "short_name": "지도 인증샷",
+  "description": "구글 지도 링크와 사진으로 간편하게 인증샷을 만드세요",
+  "icons": [
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#4285f4",
+  "background_color": "#0a0a0a",
+  "lang": "ko-KR"
+}

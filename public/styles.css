@@ -516,6 +516,8 @@ button#downloadBtn:disabled {
 
 .place-action-btn img {
     display: block;
+    width: 20px;
+    height: 20px;
 }
 
 .place-name {

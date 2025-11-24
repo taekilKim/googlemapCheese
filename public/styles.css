@@ -81,6 +81,7 @@ body.android {
     }
 
     .container {
+        width: auto;  /* Remove 100% width on mobile to account for body padding */
         padding: 20px 16px;
         gap: 24px;
         border-radius: 16px;
@@ -117,6 +118,7 @@ body.android {
     }
 
     .container {
+        width: auto;  /* Remove 100% width on mobile to account for body padding */
         padding: 16px 12px;
         gap: 20px;
     }

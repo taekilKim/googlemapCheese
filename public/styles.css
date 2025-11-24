@@ -142,6 +142,8 @@ body.android {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    min-width: 0;  /* Allow flex items to shrink below content size */
+    max-width: 100%;  /* Prevent overflow from container */
 }
 
 h1 {
